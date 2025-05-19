@@ -16,7 +16,8 @@ import {
   Plus,
   Search,
   LogOut,
-  PieChart
+  PieChart,
+  UserCircle
 } from 'lucide-react';
 import { Input } from './ui/input';
 
@@ -46,7 +47,7 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label, active, onClick }) =
 
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const location = useLocation();
   
   const isActive = (path: string) => location.pathname === path;
@@ -95,11 +96,11 @@ const Layout: React.FC = () => {
           <div className="p-4 border-b border-border">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-purple flex items-center justify-center text-white font-semibold">
-                V
+                {user?.name ? user.name[0].toUpperCase() : 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Vagner</p>
-                <p className="text-xs text-muted-foreground truncate">financeiro@leadclinic.com.br</p>
+                <p className="text-sm font-medium truncate">{user?.name || 'Usuário'}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               </div>
             </div>
           </div>
@@ -145,6 +146,13 @@ const Layout: React.FC = () => {
               icon={<Users size={18} />}
               label="Contatos"
               active={isActive('/contatos')}
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/perfil"
+              icon={<UserCircle size={18} />}
+              label="Meu Perfil"
+              active={isActive('/perfil')}
               onClick={closeSidebar}
             />
           </div>

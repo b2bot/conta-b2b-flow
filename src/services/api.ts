@@ -40,6 +40,7 @@ const apiRequest = async <T>(
   const options: RequestInit = {
     method,
     headers,
+    mode: 'cors',
     credentials: 'include',
   };
   
@@ -48,7 +49,16 @@ const apiRequest = async <T>(
   }
   
   try {
+    console.log(`Making ${method} request to ${endpoint}`);
     const response = await fetch(url, options);
+    
+    // Handle 401 Unauthorized by logging out
+    if (response.status === 401) {
+      // Clear local storage and redirect to login
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      throw new Error('Sessão expirada. Por favor, faça login novamente.');
+    }
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -75,6 +85,13 @@ export const authAPI = {
   getUserProfile: () => {
     return apiRequest<{ success: boolean; user: any }>(
       '/dados-usuario.php'
+    );
+  },
+  updateUserProfile: (userData: any) => {
+    return apiRequest<{ success: boolean; user: any }>(
+      '/atualizar-usuario.php',
+      'POST',
+      userData
     );
   }
 };

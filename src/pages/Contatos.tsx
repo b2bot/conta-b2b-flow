@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -48,6 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Define type for contact
 interface Contact {
@@ -89,11 +90,18 @@ const Contatos = () => {
   const queryClient = useQueryClient();
 
   // Fetch contacts
-  const { data: contactsData, isLoading } = useQuery({
+  const { data: contactsData, isLoading, isError, error } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
-      const response = await contactsAPI.list();
-      return response.success ? response.contacts : [];
+      try {
+        console.log('Fetching contacts...');
+        const response = await contactsAPI.list();
+        console.log('Response:', response);
+        return response.success ? response.contacts : [];
+      } catch (err) {
+        console.error('Error fetching contacts:', err);
+        throw err;
+      }
     }
   });
 
@@ -255,6 +263,53 @@ const Contatos = () => {
     }
   };
 
+  // Render loading skeleton
+  const renderLoadingSkeleton = () => (
+    <>
+      {[1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+          <div className="col-span-3">
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="col-span-3">
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+          <div className="col-span-1">
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+          <div className="col-span-1">
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+
+  // Render error state
+  const renderErrorState = () => (
+    <div className="p-8 text-center">
+      <X className="mx-auto h-12 w-12 text-red-500" />
+      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar contatos</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        Não foi possível carregar a lista de contatos. Tente novamente mais tarde.
+      </p>
+      <div className="mt-6">
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['contacts'] })}
+          className="bg-purple hover:bg-purple/90"
+        >
+          Tentar novamente
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -272,12 +327,13 @@ const Contatos = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="name">Nome <span className="text-red-500">*</span></Label>
                 <Input 
                   id="name" 
                   value={newContact.name}
                   onChange={(e) => setNewContact({...newContact, name: e.target.value})}
                   placeholder="Nome do contato ou empresa"
+                  required
                 />
               </div>
               
@@ -305,10 +361,11 @@ const Contatos = () => {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="type">Tipo</Label>
+                  <Label htmlFor="type">Tipo <span className="text-red-500">*</span></Label>
                   <Select 
                     value={newContact.type}
                     onValueChange={(value) => setNewContact({...newContact, type: value})}
+                    required
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -390,10 +447,9 @@ const Contatos = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-purple" />
-            <p className="mt-2 text-muted-foreground">Carregando contatos...</p>
-          </div>
+          renderLoadingSkeleton()
+        ) : isError ? (
+          renderErrorState()
         ) : filteredContacts.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             {searchTerm 
@@ -462,11 +518,12 @@ const Contatos = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-name">Nome</Label>
+                <Label htmlFor="edit-name">Nome <span className="text-red-500">*</span></Label>
                 <Input 
                   id="edit-name" 
                   value={currentContact.name}
                   onChange={(e) => setCurrentContact({...currentContact, name: e.target.value})}
+                  required
                 />
               </div>
               
@@ -492,10 +549,11 @@ const Contatos = () => {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-type">Tipo</Label>
+                  <Label htmlFor="edit-type">Tipo <span className="text-red-500">*</span></Label>
                   <Select 
                     value={currentContact.type}
                     onValueChange={(value) => setCurrentContact({...currentContact, type: value})}
+                    required
                   >
                     <SelectTrigger>
                       <SelectValue />

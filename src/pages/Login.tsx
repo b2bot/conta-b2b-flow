@@ -9,8 +9,8 @@ import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('cobranca@leadclinic.com.br');
+  const [password, setPassword] = useState('Vk@280112');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -34,9 +34,17 @@ const Login = () => {
       return;
     }
     
-    // Attempt login via AuthContext
-    await login(email, password);
-    // The redirection happens automatically in the AuthContext if login is successful
+    try {
+      // Attempt login via AuthContext
+      await login(email, password);
+      // The redirection happens automatically in the AuthContext if login is successful
+    } catch (error) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Houve um problema ao processar seu login",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
