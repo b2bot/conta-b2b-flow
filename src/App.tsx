@@ -13,9 +13,17 @@ import Recorrentes from "./pages/Recorrentes";
 import Categorias from "./pages/Categorias";
 import CentroCustos from "./pages/CentroCustos";
 import Contatos from "./pages/Contatos";
+import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -36,6 +44,7 @@ const App = () => (
               <Route path="categorias" element={<Categorias />} />
               <Route path="centro-custos" element={<CentroCustos />} />
               <Route path="contatos" element={<Contatos />} />
+              <Route path="perfil" element={<Perfil />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

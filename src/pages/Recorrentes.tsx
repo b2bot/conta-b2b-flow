@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +9,7 @@ import {
   Check,
   X,
   MoreHorizontal,
+  Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,93 +39,35 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { recurringAPI, categoriesAPI, contactsAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Mock data for recurring transactions
-const INITIAL_RECURRING_TRANSACTIONS = [
-  {
-    id: '1',
-    description: 'Aluguel Escritório',
-    paymentTo: 'Imobiliária Prime',
-    category: 'Aluguel',
-    amount: 3500.00,
-    type: 'expense',
-    dayOfMonth: 10,
-    frequency: 'monthly',
-    active: true,
-  },
-  {
-    id: '2',
-    description: 'Assinatura Software',
-    paymentTo: 'Adobe',
-    category: 'Software',
-    amount: 89.90,
-    type: 'expense',
-    dayOfMonth: 15,
-    frequency: 'monthly',
-    active: true,
-  },
-  {
-    id: '3',
-    description: 'Salário Funcionários',
-    paymentTo: 'Equipe',
-    category: 'Salários',
-    amount: 12000.00,
-    type: 'expense',
-    dayOfMonth: 5,
-    frequency: 'monthly',
-    active: true,
-  },
-  {
-    id: '4',
-    description: 'Contrato Mensal Cliente X',
-    paymentTo: 'Cliente X Ltda',
-    category: 'Vendas',
-    amount: 5000.00,
-    type: 'income',
-    dayOfMonth: 20,
-    frequency: 'monthly',
-    active: true,
-  },
-  {
-    id: '5',
-    description: 'Contrato Anual Cliente Y',
-    paymentTo: 'Cliente Y Ltda',
-    category: 'Vendas',
-    amount: 24000.00,
-    type: 'income',
-    dayOfMonth: 15,
-    frequency: 'yearly',
-    active: true,
-  }
-];
+// Define types for recurring transactions
+interface RecurringTransaction {
+  id: string;
+  description: string;
+  paymentTo: string;
+  category: string;
+  amount: number;
+  type: 'expense' | 'income';
+  dayOfMonth: number;
+  frequency: 'monthly' | 'yearly';
+  active: boolean;
+}
 
-// Mock data for categories
-const CATEGORIES = [
-  'Aluguel',
-  'Software',
-  'Salários',
-  'Vendas',
-  'Marketing',
-  'Serviços',
-  'Equipamentos',
-  'Impostos',
-  'Vale Refeição',
-  'Consultoria'
-];
-
-// Mock data for contacts
-const CONTACTS = [
-  'Imobiliária Prime',
-  'Adobe',
-  'Equipe',
-  'Cliente X Ltda',
-  'Cliente Y Ltda',
-  'Fornecedor Z',
-  'Greatpages'
-];
+// Type for form data
+interface RecurringForm {
+  description: string;
+  paymentTo: string;
+  category: string;
+  amount: string;
+  type: 'expense' | 'income';
+  dayOfMonth: string;
+  frequency: 'monthly' | 'yearly';
+  active: boolean;
+}
 
 const Recorrentes = () => {
-  const [recurringTransactions, setRecurringTransactions] = useState(INITIAL_RECURRING_TRANSACTIONS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     type: 'all',
@@ -134,7 +76,7 @@ const Recorrentes = () => {
     category: 'all',
   });
   
-  const [newRecurring, setNewRecurring] = useState({
+  const [newRecurring, setNewRecurring] = useState<RecurringForm>({
     description: '',
     amount: '',
     dayOfMonth: '1',
@@ -147,6 +89,107 @@ const Recorrentes = () => {
   
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Fetch recurring transactions
+  const { data: recurringData, isLoading: isLoadingRecurring } = useQuery({
+    queryKey: ['recurrings'],
+    queryFn: async () => {
+      const response = await recurringAPI.list();
+      return response.success ? response.recurrings : [];
+    }
+  });
+
+  // Fetch categories for dropdown
+  const { data: categoriesData, isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await categoriesAPI.list();
+      return response.success ? response.categories : [];
+    }
+  });
+
+  // Fetch contacts for dropdown
+  const { data: contactsData, isLoading: isLoadingContacts } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      const response = await contactsAPI.list();
+      return response.success ? response.contacts : [];
+    }
+  });
+
+  // Create recurring transaction mutation
+  const createRecurringMutation = useMutation({
+    mutationFn: (data: any) => recurringAPI.save(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
+      toast({
+        title: "Lançamento recorrente criado com sucesso",
+      });
+      setDialogOpen(false);
+      resetRecurringForm();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao criar lançamento recorrente",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update recurring transaction mutation
+  const updateRecurringMutation = useMutation({
+    mutationFn: (data: any) => recurringAPI.save(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
+      toast({
+        title: "Lançamento recorrente atualizado com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao atualizar lançamento recorrente",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete recurring transaction mutation
+  const deleteRecurringMutation = useMutation({
+    mutationFn: (id: string) => recurringAPI.save({ id, deleted: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
+      toast({
+        title: "Lançamento recorrente excluído com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir lançamento recorrente",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  const resetRecurringForm = () => {
+    setNewRecurring({
+      description: '',
+      amount: '',
+      dayOfMonth: '1',
+      type: 'expense',
+      category: '',
+      paymentTo: '',
+      frequency: 'monthly',
+      active: true
+    });
+  };
+
+  const recurringTransactions = recurringData || [];
+  const categories = categoriesData || [];
+  const contacts = contactsData || [];
   
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', {
@@ -190,10 +233,7 @@ const Recorrentes = () => {
       return;
     }
     
-    const newId = (Math.max(...recurringTransactions.map(t => Number(t.id))) + 1).toString();
-    
-    const createdTransaction = {
-      id: newId,
+    createRecurringMutation.mutate({
       description: newRecurring.description,
       paymentTo: newRecurring.paymentTo,
       category: newRecurring.category,
@@ -202,46 +242,21 @@ const Recorrentes = () => {
       dayOfMonth: parseInt(newRecurring.dayOfMonth),
       frequency: newRecurring.frequency,
       active: newRecurring.active
-    };
-    
-    setRecurringTransactions(prev => [createdTransaction, ...prev]);
-    
-    toast({
-      title: "Lançamento recorrente criado",
-      description: "O lançamento recorrente foi criado com sucesso.",
     });
-    
-    setNewRecurring({
-      description: '',
-      amount: '',
-      dayOfMonth: '1',
-      type: 'expense',
-      category: '',
-      paymentTo: '',
-      frequency: 'monthly',
-      active: true
-    });
-    
-    setDialogOpen(false);
   };
   
-  const toggleTransactionActive = (id: string) => {
-    setRecurringTransactions(prev => 
-      prev.map(transaction => 
-        transaction.id === id 
-          ? { ...transaction, active: !transaction.active } 
-          : transaction
-      )
-    );
+  const toggleTransactionActive = (id: string, currentActive: boolean) => {
+    updateRecurringMutation.mutate({ 
+      id, 
+      active: !currentActive 
+    });
   };
   
   const deleteTransaction = (id: string) => {
-    setRecurringTransactions(prev => prev.filter(transaction => transaction.id !== id));
-    toast({
-      title: "Lançamento excluído",
-      description: "O lançamento recorrente foi excluído com sucesso.",
-    });
+    deleteRecurringMutation.mutate(id);
   };
+
+  const isLoading = isLoadingRecurring || isLoadingCategories || isLoadingContacts;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -267,7 +282,7 @@ const Recorrentes = () => {
                   <Label htmlFor="transaction-type">Tipo</Label>
                   <Select 
                     value={newRecurring.type}
-                    onValueChange={(value) => setNewRecurring({...newRecurring, type: value})}
+                    onValueChange={(value: 'expense' | 'income') => setNewRecurring({...newRecurring, type: value})}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
@@ -311,9 +326,15 @@ const Recorrentes = () => {
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
+                      {isLoadingCategories ? (
+                        <SelectItem value="" disabled>Carregando...</SelectItem>
+                      ) : categories.length === 0 ? (
+                        <SelectItem value="" disabled>Nenhuma categoria encontrada</SelectItem>
+                      ) : (
+                        categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -328,9 +349,15 @@ const Recorrentes = () => {
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {CONTACTS.map((contact) => (
-                        <SelectItem key={contact} value={contact}>{contact}</SelectItem>
-                      ))}
+                      {isLoadingContacts ? (
+                        <SelectItem value="" disabled>Carregando...</SelectItem>
+                      ) : contacts.length === 0 ? (
+                        <SelectItem value="" disabled>Nenhum contato encontrado</SelectItem>
+                      ) : (
+                        contacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.name}>{contact.name}</SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -360,7 +387,7 @@ const Recorrentes = () => {
                   <Label htmlFor="frequency">Frequência</Label>
                   <Select 
                     value={newRecurring.frequency}
-                    onValueChange={(value) => setNewRecurring({...newRecurring, frequency: value})}
+                    onValueChange={(value: 'monthly' | 'yearly') => setNewRecurring({...newRecurring, frequency: value})}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -386,8 +413,17 @@ const Recorrentes = () => {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button className="bg-purple hover:bg-purple/90" onClick={handleCreateRecurring}>
-                Criar Lançamento
+              <Button 
+                className="bg-purple hover:bg-purple/90" 
+                onClick={handleCreateRecurring}
+                disabled={createRecurringMutation.isPending}
+              >
+                {createRecurringMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Criando...
+                  </>
+                ) : 'Criar Lançamento'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -511,8 +547,8 @@ const Recorrentes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
-                    {CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -535,7 +571,12 @@ const Recorrentes = () => {
           <div className="col-span-1"></div>
         </div>
 
-        {filteredTransactions.length === 0 ? (
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-purple" />
+            <p className="mt-2 text-muted-foreground">Carregando lançamentos recorrentes...</p>
+          </div>
+        ) : filteredTransactions.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             Nenhum lançamento recorrente encontrado.
           </div>
@@ -578,7 +619,8 @@ const Recorrentes = () => {
                       ? 'bg-purple border-purple text-white' 
                       : 'border-gray-300'
                   }`}
-                  onClick={() => toggleTransactionActive(transaction.id)}
+                  onClick={() => toggleTransactionActive(transaction.id, transaction.active)}
+                  disabled={updateRecurringMutation.isPending}
                 >
                   {transaction.active && <Check size={12} />}
                 </button>
@@ -592,14 +634,16 @@ const Recorrentes = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem 
-                      onClick={() => toggleTransactionActive(transaction.id)}
+                      onClick={() => toggleTransactionActive(transaction.id, transaction.active)}
                       className="cursor-pointer"
+                      disabled={updateRecurringMutation.isPending}
                     >
                       {transaction.active ? 'Desativar' : 'Ativar'}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => deleteTransaction(transaction.id)}
                       className="text-red-600 focus:text-red-600 cursor-pointer"
+                      disabled={deleteRecurringMutation.isPending}
                     >
                       Excluir
                     </DropdownMenuItem>

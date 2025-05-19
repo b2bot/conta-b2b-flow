@@ -1,42 +1,42 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login, isAuthenticated, isLoading } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Simulate API call delay
-    setTimeout(() => {
-      // Hard-coded credentials as specified in requirements
-      if (email === 'cobranca@leadclinic.com.br' && password === 'Vk@280112') {
-        // Set user in localStorage
-        localStorage.setItem('user', JSON.stringify({ email, isAuthenticated: true }));
-        toast({
-          title: 'Login realizado com sucesso',
-          description: 'Bem-vindo ao Conta Partner B2B',
-        });
-        navigate('/dashboard');
-      } else {
-        toast({
-          title: 'Erro de autenticação',
-          description: 'Email ou senha incorretos',
-          variant: 'destructive',
-        });
-      }
-      setLoading(false);
-    }, 800);
+    
+    if (!email || !password) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Informe seu email e senha",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Attempt login via AuthContext
+    await login(email, password);
+    // The redirection happens automatically in the AuthContext if login is successful
   };
 
   return (
@@ -95,9 +95,14 @@ const Login = () => {
               <Button 
                 type="submit"
                 className="w-full bg-purple hover:bg-purple/90" 
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Entrando...' : 'Entrar'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : 'Entrar'}
               </Button>
             </CardFooter>
           </form>

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Plus, 
@@ -46,62 +46,30 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { contactsAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Mock data for contacts
-const INITIAL_CONTACTS = [
-  { 
-    id: '1', 
-    name: 'Eduarda Oliveira', 
-    email: 'eduarda@example.com', 
-    phone: '(11) 98765-4321', 
-    type: 'employee',
-    company: 'Lead Clinic'
-  },
-  { 
-    id: '2', 
-    name: 'Procfy', 
-    email: 'contato@procfy.com', 
-    phone: '(11) 3456-7890', 
-    type: 'supplier',
-    company: 'Procfy Ltda'
-  },
-  { 
-    id: '3', 
-    name: 'Dr. Danilo Martins', 
-    email: 'danilo@example.com', 
-    phone: '(11) 91234-5678', 
-    type: 'supplier',
-    company: 'Martins & Alves Advocacia'
-  },
-  { 
-    id: '4', 
-    name: 'Greatpages', 
-    email: 'contato@greatpages.com', 
-    phone: '(11) 3333-4444', 
-    type: 'supplier',
-    company: 'Greatpages Tech' 
-  },
-  { 
-    id: '5', 
-    name: 'Cliente ABC', 
-    email: 'contato@clienteabc.com', 
-    phone: '(11) 5555-6666', 
-    type: 'client',
-    company: 'Cliente ABC Ltda'
-  },
-  { 
-    id: '6', 
-    name: 'Empresa XYZ', 
-    email: 'contato@empresaxyz.com', 
-    phone: '(11) 7777-8888', 
-    type: 'client',
-    company: 'Empresa XYZ S.A.'
-  }
-];
+// Define type for contact
+interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  type: string;
+  company: string;
+}
+
+// Define type for new contact form
+interface ContactForm {
+  name: string;
+  email: string;
+  phone: string;
+  type: string;
+  company: string;
+}
 
 const Contatos = () => {
-  const [contacts, setContacts] = useState(INITIAL_CONTACTS);
-  const [newContact, setNewContact] = useState({
+  const [newContact, setNewContact] = useState<ContactForm>({
     name: '',
     email: '',
     phone: '',
@@ -111,14 +79,95 @@ const Contatos = () => {
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [currentContact, setCurrentContact] = useState<typeof newContact | null>(null);
+  const [currentContact, setCurrentContact] = useState<Contact | null>(null);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch contacts
+  const { data: contactsData, isLoading } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      const response = await contactsAPI.list();
+      return response.success ? response.contacts : [];
+    }
+  });
+
+  // Create contact mutation
+  const createContactMutation = useMutation({
+    mutationFn: (contact: ContactForm) => contactsAPI.save(contact),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast({
+        title: "Contato criado com sucesso",
+      });
+      setDialogOpen(false);
+      resetContactForm();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao criar contato",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update contact mutation
+  const updateContactMutation = useMutation({
+    mutationFn: (contact: Contact) => contactsAPI.save(contact),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast({
+        title: "Contato atualizado com sucesso",
+      });
+      setEditDialogOpen(false);
+      setCurrentContact(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao atualizar contato",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete contact mutation
+  const deleteContactMutation = useMutation({
+    mutationFn: (id: string) => contactsAPI.save({ id, deleted: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast({
+        title: "Contato excluído com sucesso",
+      });
+      setAlertDialogOpen(false);
+      setContactToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir contato",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  const contacts = contactsData || [];
+
+  const resetContactForm = () => {
+    setNewContact({
+      name: '',
+      email: '',
+      phone: '',
+      type: 'client',
+      company: ''
+    });
+  };
 
   const filteredContacts = contacts.filter(contact => {
     // Filter by tab
@@ -146,39 +195,16 @@ const Contatos = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      const newId = (Math.max(...contacts.map(c => Number(c.id))) + 1).toString();
-      
-      setContacts(prev => [...prev, {
-        id: newId,
-        ...newContact,
-        name: newContact.name.trim(),
-        email: newContact.email.trim(),
-        phone: newContact.phone.trim(),
-        company: newContact.company.trim()
-      }]);
-      
-      toast({
-        title: "Contato criado com sucesso",
-      });
-      
-      setNewContact({
-        name: '',
-        email: '',
-        phone: '',
-        type: 'client',
-        company: ''
-      });
-      
-      setDialogOpen(false);
-      setIsSubmitting(false);
-    }, 500);
+    createContactMutation.mutate({
+      ...newContact,
+      name: newContact.name.trim(),
+      email: newContact.email.trim(),
+      phone: newContact.phone.trim(),
+      company: newContact.company.trim()
+    });
   };
   
-  const openEditDialog = (contact: typeof newContact) => {
+  const openEditDialog = (contact: Contact) => {
     setCurrentContact(contact);
     setEditDialogOpen(true);
   };
@@ -192,32 +218,13 @@ const Contatos = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      setContacts(prev => 
-        prev.map(contact => 
-          contact.id === currentContact.id 
-            ? { 
-                ...currentContact,
-                name: currentContact.name.trim(),
-                email: currentContact.email.trim(),
-                phone: currentContact.phone.trim(),
-                company: currentContact.company.trim()
-              } 
-            : contact
-        )
-      );
-      
-      toast({
-        title: "Contato atualizado com sucesso",
-      });
-      
-      setCurrentContact(null);
-      setEditDialogOpen(false);
-      setIsSubmitting(false);
-    }, 500);
+    updateContactMutation.mutate({
+      ...currentContact,
+      name: currentContact.name.trim(),
+      email: currentContact.email.trim(),
+      phone: currentContact.phone.trim(),
+      company: currentContact.company.trim()
+    });
   };
   
   const confirmDelete = (id: string) => {
@@ -227,15 +234,7 @@ const Contatos = () => {
   
   const deleteContact = () => {
     if (!contactToDelete) return;
-    
-    setContacts(prev => prev.filter(contact => contact.id !== contactToDelete));
-    
-    toast({
-      title: "Contato excluído com sucesso",
-    });
-    
-    setContactToDelete(null);
-    setAlertDialogOpen(false);
+    deleteContactMutation.mutate(contactToDelete);
   };
   
   const getTypeLabel = (type: string) => {
@@ -337,9 +336,9 @@ const Contatos = () => {
               <Button 
                 className="bg-purple hover:bg-purple/90" 
                 onClick={handleCreateContact}
-                disabled={isSubmitting}
+                disabled={createContactMutation.isPending}
               >
-                {isSubmitting ? (
+                {createContactMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Criando...
@@ -390,7 +389,12 @@ const Contatos = () => {
           <div className="col-span-1"></div>
         </div>
 
-        {filteredContacts.length === 0 ? (
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-purple" />
+            <p className="mt-2 text-muted-foreground">Carregando contatos...</p>
+          </div>
+        ) : filteredContacts.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             {searchTerm 
               ? "Nenhum contato encontrado para essa busca." 
@@ -518,9 +522,9 @@ const Contatos = () => {
               <Button 
                 className="bg-purple hover:bg-purple/90" 
                 onClick={handleUpdateContact}
-                disabled={isSubmitting}
+                disabled={updateContactMutation.isPending}
               >
-                {isSubmitting ? (
+                {updateContactMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Salvando...
@@ -545,8 +549,14 @@ const Contatos = () => {
             <AlertDialogAction
               className="bg-red-500 hover:bg-red-600"
               onClick={deleteContact}
+              disabled={deleteContactMutation.isPending}
             >
-              Excluir
+              {deleteContactMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
