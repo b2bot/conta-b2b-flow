@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -21,7 +20,27 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { recurringAPI } from '@/services/api';
+
+const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
+
+const recurringAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-recorrentes.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return await res.json();
+  },
+  save: async (recorrente: any) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-recorrente.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recorrente),
+    });
+    return await res.json();
+  }
+  // Adicione métodos de delete/update se existirem em seu backend!
+};
 import { 
   Plus, 
   Loader2, 

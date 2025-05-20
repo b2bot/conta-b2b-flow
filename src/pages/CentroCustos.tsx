@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -38,7 +37,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { costCentersAPI } from '@/services/api';
+
+const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
+
+const costCentersAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-centro-custos.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return await res.json();
+  },
+  save: async (centro: any) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(centro),
+    });
+    return await res.json();
+  }
+};
 
 interface CostCenter {
   id: string;

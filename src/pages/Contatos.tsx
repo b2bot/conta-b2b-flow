@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -9,9 +8,7 @@ import {
   MoreHorizontal,
   Loader2,
   X,
-  Check,
-  Download,
-  Upload
+  Check
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -48,7 +45,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import FileImport from '@/components/FileImport';
@@ -58,6 +54,26 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
+const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
+
+const contactsAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-contatos.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return await res.json();
+  },
+  save: async (contato: any) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-contato.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contato),
+    });
+    return await res.json();
+  }
+};
 
 // Define type for contact
 interface Contact {

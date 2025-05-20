@@ -1,117 +1,66 @@
-/**
- * API Service
- * Centraliza todas as chamadas à API PHP backend
- */
+// src/services/api.ts
 
-const API_BASE_URL = 'https://sistema.vksistemas.com.br/api/';
+const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
 
-// Helper para obter o token de autenticação
-export const getAuthToken = (): string | null => {
-  const user = localStorage.getItem('user');
-  if (!user) return null;
-
-  try {
-    const userData = JSON.parse(user);
-    return userData.token || null;
-  } catch (error) {
-    console.error('Erro ao interpretar dados do usuário:', error);
-    return null;
-  }
+const handleResponse = async (res: Response) => {
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Erro na API');
+  return data;
 };
 
-// Função genérica para requisições à API
-export const apiRequest = async <T>({
-  endpoint,
-  method = 'GET',
-  data,
-}: {
-  endpoint: string;
-  method?: 'GET' | 'POST';
-  data?: any;
-}): Promise<T> => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const token = getAuthToken();
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const options: RequestInit = {
-    method,
-    headers,
-    mode: 'cors',
-    body: method === 'POST' ? JSON.stringify(data) : undefined,
-  };
-
-  try {
-    const response = await fetch(url, options);
-
-    const result = await response.json();
-
-    if (!response.ok || result.status === 'error') {
-      throw new Error(result.message || `Erro ${response.status}`);
-    }
-
-    return result;
-  } catch (error) {
-    console.error(`Erro ao acessar ${endpoint}:`, error);
-    throw error;
-  }
-};
-
-// ✅ API específica para cada módulo:
-
-export const transactionsAPI = {
-  list: () => apiRequest({ endpoint: 'listar-transacoes.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-transacao.php', method: 'POST', data }),
-};
-
-export const recurringAPI = {
-  list: () => apiRequest({ endpoint: 'listar-recorrentes.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-recorrente.php', method: 'POST', data }),
-};
-
+// --- CATEGORIAS ---
 export const categoriesAPI = {
-  list: () => apiRequest({ endpoint: 'listar-categorias.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-categoria.php', method: 'POST', data }),
-};
-
-export const centerCostsAPI = {
-  list: () => apiRequest({ endpoint: 'listar-centro-custos.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-centro-custo.php', method: 'POST', data }),
-};
-
-// ✅ Correção final duplicada (você pode escolher manter apenas uma das duas abaixo se quiser):
-export const costCentersAPI = {
-  list: () => apiRequest({ endpoint: 'listar-centro-custos.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-centro-custo.php', method: 'POST', data }),
-};
-
-export const contactsAPI = {
-  list: () => apiRequest({ endpoint: 'listar-contatos.php', method: 'POST' }),
-  save: (data: any) => apiRequest({ endpoint: 'salvar-contato.php', method: 'POST', data }),
-};
-
-export const authAPI = {
-  login: async (data: { email: string; senha: string }) => {
-    const result = await apiRequest<{ status: string; user?: any; message?: string }>({
-      endpoint: 'login.php',
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-categorias.php`, {
       method: 'POST',
-      data,
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    if (result.status !== 'success') {
-      throw new Error(result.message || 'Erro ao fazer login');
-    }
-
-    return result.user;
+    return handleResponse(res);
   },
+  save: async (categoria: { id?: string; name: string; tipo: string }) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-categoria.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(categoria),
+    });
+    return handleResponse(res);
+  }
+};
 
-  user: () => apiRequest({ endpoint: 'dados-usuario.php', method: 'POST' }),
+// --- CONTATOS ---
+export const contactsAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-contatos.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return handleResponse(res);
+  },
+  save: async (contato: any) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-contato.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contato),
+    });
+    return handleResponse(res);
+  }
+};
 
-  update: (data: any) => apiRequest({ endpoint: 'atualizar-usuario.php', method: 'POST', data }),
+// --- CENTRO DE CUSTO ---
+export const centrosAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-centro-custos.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return handleResponse(res);
+  },
+  save: async (centro: { id?: string; nome: string }) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(centro),
+    });
+    return handleResponse(res);
+  }
 };
