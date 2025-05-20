@@ -5,7 +5,6 @@ import {
   Plus, 
   X,
   Pencil,
-  Save,
   MoreHorizontal,
   Loader2
 } from 'lucide-react';
@@ -44,24 +43,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { categoriesAPI } from '@/services/api';
 
-// Mock data for categories
-const INITIAL_CATEGORIES = [
-  { id: '1', name: 'Vale Refeição', type: 'expense' },
-  { id: '2', name: 'Software', type: 'expense' },
-  { id: '3', name: 'Advogado', type: 'expense' },
-  { id: '4', name: 'Vendas', type: 'income' },
-  { id: '5', name: 'Consultoria', type: 'income' },
-  { id: '6', name: 'Marketing', type: 'expense' },
-  { id: '7', name: 'Aluguel', type: 'expense' },
-  { id: '8', name: 'Serviços', type: 'expense' },
-  { id: '9', name: 'Equipamentos', type: 'expense' },
-  { id: '10', name: 'Impostos', type: 'expense' }
-];
+interface Category {
+  id: string;
+  name: string;
+  type: 'expense' | 'income';
+}
 
 const Categorias = () => {
-  const [categories, setCategories] = useState(INITIAL_CATEGORIES);
-  const [newCategory, setNewCategory] = useState({ name: '', type: 'expense' });
+  const [newCategory, setNewCategory] = useState<{ name: string; type: 'expense' | 'income' }>({ 
+    name: '', 
+    type: 'expense' 
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -69,7 +64,91 @@ const Categorias = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch categories
+  const { data: categoriesData, isLoading, isError } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      try {
+        const response = await categoriesAPI.list();
+        return response.success ? response.categories : [];
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        toast({
+          title: "Erro ao carregar categorias",
+          description: "Não foi possível carregar a lista de categorias",
+          variant: "destructive",
+        });
+        return [];
+      }
+    }
+  });
+
+  // Create category mutation
+  const createCategoryMutation = useMutation({
+    mutationFn: (category: { name: string; type: string }) => categoriesAPI.save(category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({
+        title: "Categoria criada com sucesso",
+      });
+      setDialogOpen(false);
+      setNewCategory({ name: '', type: 'expense' });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao criar categoria",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update category mutation
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => {
+      const category = categoriesData?.find(cat => cat.id === id);
+      return categoriesAPI.save({ id, name, type: category?.type });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({
+        title: "Categoria atualizada com sucesso",
+      });
+      setEditId(null);
+      setEditName('');
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao atualizar categoria",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete category mutation
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: string) => categoriesAPI.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({
+        title: "Categoria excluída com sucesso",
+      });
+      setAlertDialogOpen(false);
+      setCategoryToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir categoria",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  const categories = categoriesData || [];
 
   const filteredCategories = categories.filter(category => {
     if (filter === 'all') return true;
@@ -85,26 +164,10 @@ const Categorias = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      const newId = (Math.max(...categories.map(c => Number(c.id))) + 1).toString();
-      
-      setCategories(prev => [...prev, {
-        id: newId,
-        name: newCategory.name.trim(),
-        type: newCategory.type
-      }]);
-      
-      toast({
-        title: "Categoria criada com sucesso",
-      });
-      
-      setNewCategory({ name: '', type: 'expense' });
-      setDialogOpen(false);
-      setIsSubmitting(false);
-    }, 500);
+    createCategoryMutation.mutate({
+      name: newCategory.name.trim(),
+      type: newCategory.type
+    });
   };
   
   const startEdit = (id: string, name: string) => {
@@ -126,20 +189,7 @@ const Categorias = () => {
       return;
     }
     
-    setCategories(prev => 
-      prev.map(category => 
-        category.id === id 
-          ? { ...category, name: editName.trim() } 
-          : category
-      )
-    );
-    
-    toast({
-      title: "Categoria atualizada com sucesso",
-    });
-    
-    setEditId(null);
-    setEditName('');
+    updateCategoryMutation.mutate({ id, name: editName.trim() });
   };
   
   const confirmDelete = (id: string) => {
@@ -149,16 +199,41 @@ const Categorias = () => {
   
   const deleteCategory = () => {
     if (!categoryToDelete) return;
-    
-    setCategories(prev => prev.filter(category => category.id !== categoryToDelete));
-    
-    toast({
-      title: "Categoria excluída com sucesso",
-    });
-    
-    setCategoryToDelete(null);
-    setAlertDialogOpen(false);
+    deleteCategoryMutation.mutate(categoryToDelete);
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <h1 className="text-2xl font-bold text-purple-dark">Categorias</h1>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-purple" />
+          <span className="ml-2">Carregando categorias...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <h1 className="text-2xl font-bold text-purple-dark">Categorias</h1>
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+          <p className="text-center">Erro ao carregar categorias. Por favor, tente novamente.</p>
+          <div className="flex justify-center mt-4">
+            <Button 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['categories'] })}
+              className="bg-purple hover:bg-purple/90"
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -189,7 +264,7 @@ const Categorias = () => {
                 <Label htmlFor="type">Tipo</Label>
                 <Select 
                   value={newCategory.type}
-                  onValueChange={(value) => setNewCategory({...newCategory, type: value})}
+                  onValueChange={(value: 'expense' | 'income') => setNewCategory({...newCategory, type: value})}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -206,9 +281,9 @@ const Categorias = () => {
               <Button 
                 className="bg-purple hover:bg-purple/90" 
                 onClick={handleCreateCategory}
-                disabled={isSubmitting}
+                disabled={createCategoryMutation.isPending}
               >
-                {isSubmitting ? (
+                {createCategoryMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Criando...
@@ -274,8 +349,13 @@ const Categorias = () => {
                         size="icon"
                         className="h-8 w-8 text-green-600"
                         onClick={() => saveEdit(category.id)}
+                        disabled={updateCategoryMutation.isPending}
                       >
-                        <Save size={16} />
+                        {updateCategoryMutation.isPending ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Check size={16} />
+                        )}
                       </Button>
                       <Button 
                         variant="ghost" 
@@ -337,8 +417,14 @@ const Categorias = () => {
             <AlertDialogAction
               className="bg-red-500 hover:bg-red-600"
               onClick={deleteCategory}
+              disabled={deleteCategoryMutation.isPending}
             >
-              Excluir
+              {deleteCategoryMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

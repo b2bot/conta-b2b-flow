@@ -49,7 +49,7 @@ const apiRequest = async <T>(
   }
   
   try {
-    console.log(`Making ${method} request to ${endpoint}`);
+    console.log(`Making ${method} request to ${endpoint} with data:`, data);
     const response = await fetch(url, options);
     
     // Handle 401 Unauthorized by logging out
@@ -60,13 +60,14 @@ const apiRequest = async <T>(
       throw new Error('Sessão expirada. Por favor, faça login novamente.');
     }
     
+    const responseData = await response.json();
+    console.log(`Response from ${endpoint}:`, responseData);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API request failed with status ${response.status}`);
+      throw new Error(responseData.message || `API request failed with status ${response.status}`);
     }
     
-    const result = await response.json();
-    return result as T;
+    return responseData as T;
   } catch (error) {
     console.error(`Error in ${method} request to ${endpoint}:`, error);
     throw error;
@@ -84,7 +85,8 @@ export const authAPI = {
   },
   getUserProfile: () => {
     return apiRequest<{ success: boolean; user: any }>(
-      '/dados-usuario.php'
+      '/dados-usuario.php',
+      'POST'
     );
   },
   updateUserProfile: (userData: any) => {
@@ -100,7 +102,8 @@ export const authAPI = {
 export const contactsAPI = {
   list: () => {
     return apiRequest<{ success: boolean; contacts: any[] }>(
-      '/listar-contatos.php'
+      '/listar-contatos.php',
+      'POST'
     );
   },
   save: (contact: any) => {
@@ -109,6 +112,13 @@ export const contactsAPI = {
       'POST',
       contact
     );
+  },
+  delete: (id: string) => {
+    return apiRequest<{ success: boolean }>(
+      '/salvar-contato.php',
+      'POST',
+      { id, deleted: true }
+    );
   }
 };
 
@@ -116,7 +126,8 @@ export const contactsAPI = {
 export const transactionsAPI = {
   list: () => {
     return apiRequest<{ success: boolean; transactions: any[] }>(
-      '/listar-transacoes.php'
+      '/listar-transacoes.php',
+      'POST'
     );
   },
   save: (transaction: any) => {
@@ -125,6 +136,13 @@ export const transactionsAPI = {
       'POST',
       transaction
     );
+  },
+  delete: (id: string) => {
+    return apiRequest<{ success: boolean }>(
+      '/salvar-transacao.php',
+      'POST',
+      { id, deleted: true }
+    );
   }
 };
 
@@ -132,7 +150,8 @@ export const transactionsAPI = {
 export const recurringAPI = {
   list: () => {
     return apiRequest<{ success: boolean; recurrings: any[] }>(
-      '/listar-recorrentes.php'
+      '/listar-recorrentes.php',
+      'POST'
     );
   },
   save: (recurring: any) => {
@@ -141,6 +160,13 @@ export const recurringAPI = {
       'POST',
       recurring
     );
+  },
+  delete: (id: string) => {
+    return apiRequest<{ success: boolean }>(
+      '/salvar-recorrente.php',
+      'POST',
+      { id, deleted: true }
+    );
   }
 };
 
@@ -148,7 +174,8 @@ export const recurringAPI = {
 export const categoriesAPI = {
   list: () => {
     return apiRequest<{ success: boolean; categories: any[] }>(
-      '/listar-categorias.php'
+      '/listar-categorias.php',
+      'POST'
     );
   },
   save: (category: any) => {
@@ -157,6 +184,13 @@ export const categoriesAPI = {
       'POST',
       category
     );
+  },
+  delete: (id: string) => {
+    return apiRequest<{ success: boolean }>(
+      '/salvar-categoria.php',
+      'POST',
+      { id, deleted: true }
+    );
   }
 };
 
@@ -164,7 +198,8 @@ export const categoriesAPI = {
 export const costCentersAPI = {
   list: () => {
     return apiRequest<{ success: boolean; costCenters: any[] }>(
-      '/listar-centro-custos.php'
+      '/listar-centro-custos.php',
+      'POST'
     );
   },
   save: (costCenter: any) => {
@@ -172,6 +207,13 @@ export const costCentersAPI = {
       '/salvar-centro-custo.php',
       'POST',
       costCenter
+    );
+  },
+  delete: (id: string) => {
+    return apiRequest<{ success: boolean }>(
+      '/salvar-centro-custo.php',
+      'POST',
+      { id, deleted: true }
     );
   }
 };

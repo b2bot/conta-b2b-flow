@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +63,7 @@ const Perfil = () => {
       } else {
         toast({
           title: "Erro ao atualizar perfil",
-          description: data.message || "Não foi possível atualizar suas informações",
+          description: "Não foi possível atualizar suas informações",
           variant: "destructive",
         });
       }
