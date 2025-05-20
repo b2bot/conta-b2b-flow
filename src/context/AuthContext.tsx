@@ -1,10 +1,10 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '@/services/api';
+import { apiRequest } from '@/services/api';
 import { useToast } from '@/components/ui/use-toast';
 
 interface User {
+  id: number;
   email: string;
   name?: string;
   isAuthenticated: boolean;
@@ -38,7 +38,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if user exists in localStorage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -53,7 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUserInfo = (userData: Partial<User>) => {
     if (!user) return;
-    
     const updatedUser = { ...user, ...userData };
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -62,32 +60,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      console.log('Attempting login with email:', email);
-      const response = await authAPI.login(email, password);
-      
-      if (response.success) {
-        const userData = { 
+      const response = await apiRequest<any>({
+        endpoint: 'login.php',
+        method: 'POST',
+        data: { email, senha: password },
+      });
+
+      if (response.status === 'success' && response.user) {
+        const userData = {
+          id: response.user.id,
           email: response.user.email,
-          name: response.user.name,
+          name: response.user.nome,
           isAuthenticated: true,
-          token: response.token
+          token: response.token || 'fake-token',
         };
-        
+
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
-        
+
         toast({
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        
-        // Navigate after setting user data
+
         navigate('/dashboard');
         return true;
       } else {
         toast({
           title: "Erro de autenticação",
-          description: "Email ou senha incorretos",
+          description: response.message || "Email ou senha incorretos",
           variant: "destructive",
         });
         return false;
@@ -117,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     isAuthenticated: !!user?.isAuthenticated,
     isLoading,
-    updateUserInfo
+    updateUserInfo,
   };
 
   return (
@@ -127,20 +128,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Protected route component
 export const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
-  
-  if (!isAuthenticated) {
-    return null;
-  }
-  
+
+  if (!isAuthenticated) return null;
   return <>{children}</>;
 };
