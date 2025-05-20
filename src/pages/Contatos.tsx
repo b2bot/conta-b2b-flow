@@ -9,7 +9,9 @@ import {
   MoreHorizontal,
   Loader2,
   X,
-  Check
+  Check,
+  Download,
+  Upload
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -49,6 +51,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
+import FileImport from '@/components/FileImport';
+import { exportToExcel } from '@/utils/fileUtils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 // Define type for contact
 interface Contact {
@@ -85,6 +94,7 @@ const Contatos = () => {
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -147,7 +157,7 @@ const Contatos = () => {
 
   // Delete contact mutation
   const deleteContactMutation = useMutation({
-    mutationFn: (id: string) => contactsAPI.save({ id, deleted: true }),
+    mutationFn: (id: string) => contactsAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       toast({
@@ -159,6 +169,29 @@ const Contatos = () => {
     onError: (error) => {
       toast({
         title: "Erro ao excluir contato",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Bulk import contacts mutation
+  const bulkImportMutation = useMutation({
+    mutationFn: (contacts: ContactForm[]) => {
+      // Create a promise for each contact
+      const promises = contacts.map(contact => contactsAPI.save(contact));
+      return Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      setImportDialogOpen(false);
+      toast({
+        title: "Contatos importados com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao importar contatos",
         description: String(error),
         variant: "destructive",
       });
@@ -263,6 +296,65 @@ const Contatos = () => {
     }
   };
 
+  const handleImportContacts = (data: any[]) => {
+    // Map imported data to contact format
+    const contacts: ContactForm[] = data.map(item => ({
+      name: item.nome || item.name || '',
+      email: item.email || '',
+      phone: item.telefone || item.phone || '',
+      type: getContactTypeFromString(item.tipo || item.type || ''),
+      company: item.empresa || item.company || ''
+    }));
+
+    // Validate contacts
+    const validContacts = contacts.filter(contact => contact.name.trim() !== '');
+    
+    if (validContacts.length === 0) {
+      toast({
+        title: "Erro na importação",
+        description: "Nenhum contato válido encontrado no arquivo. O nome é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Import contacts
+    bulkImportMutation.mutate(validContacts);
+  };
+
+  const getContactTypeFromString = (typeString: string): string => {
+    const typeStringLower = typeString.toLowerCase();
+    
+    if (typeStringLower.includes('cliente') || typeStringLower.includes('client')) {
+      return 'client';
+    } else if (typeStringLower.includes('fornecedor') || typeStringLower.includes('supplier')) {
+      return 'supplier';
+    } else if (typeStringLower.includes('funcionário') || typeStringLower.includes('employee')) {
+      return 'employee';
+    }
+    
+    // Default to client
+    return 'client';
+  };
+
+  const handleExportContacts = () => {
+    // Transform contacts for export
+    const dataToExport = filteredContacts.map(contact => ({
+      Nome: contact.name,
+      Email: contact.email,
+      Telefone: contact.phone,
+      Empresa: contact.company,
+      Tipo: getTypeLabel(contact.type)
+    }));
+    
+    exportToExcel(dataToExport, 'contatos');
+    
+    toast({
+      title: "Exportação concluída",
+      description: "Os contatos foram exportados com sucesso.",
+    });
+  };
+
   // Render loading skeleton
   const renderLoadingSkeleton = () => (
     <>
@@ -314,97 +406,129 @@ const Contatos = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Contatos</h1>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-purple hover:bg-purple/90">
-              <Plus size={18} className="mr-2" />
-              Novo Contato
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-purple-dark">Novo Contato</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome <span className="text-red-500">*</span></Label>
-                <Input 
-                  id="name" 
-                  value={newContact.name}
-                  onChange={(e) => setNewContact({...newContact, name: e.target.value})}
-                  placeholder="Nome do contato ou empresa"
-                  required
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact({...newContact, email: e.target.value})}
-                    placeholder="email@exemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input 
-                    id="phone" 
-                    value={newContact.phone}
-                    onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo <span className="text-red-500">*</span></Label>
-                  <Select 
-                    value={newContact.type}
-                    onValueChange={(value) => setNewContact({...newContact, type: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="client">Cliente</SelectItem>
-                      <SelectItem value="supplier">Fornecedor</SelectItem>
-                      <SelectItem value="employee">Funcionário</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Empresa</Label>
-                  <Input 
-                    id="company" 
-                    value={newContact.company}
-                    onChange={(e) => setNewContact({...newContact, company: e.target.value})}
-                    placeholder="Nome da empresa"
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button 
-                className="bg-purple hover:bg-purple/90" 
-                onClick={handleCreateContact}
-                disabled={createContactMutation.isPending}
-              >
-                {createContactMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Criando...
-                  </>
-                ) : 'Criar Contato'}
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Importar/Exportar
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </PopoverTrigger>
+            <PopoverContent className="w-56">
+              <div className="flex flex-col gap-2">
+                <Button 
+                  variant="ghost" 
+                  className="justify-start"
+                  onClick={() => setImportDialogOpen(true)}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar planilha
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="justify-start"
+                  onClick={handleExportContacts}
+                  disabled={filteredContacts.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar contatos
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-purple hover:bg-purple/90">
+                <Plus size={18} className="mr-2" />
+                Novo Contato
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-purple-dark">Novo Contato</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome <span className="text-red-500">*</span></Label>
+                  <Input 
+                    id="name" 
+                    value={newContact.name}
+                    onChange={(e) => setNewContact({...newContact, name: e.target.value})}
+                    placeholder="Nome do contato ou empresa"
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact({...newContact, email: e.target.value})}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone</Label>
+                    <Input 
+                      id="phone" 
+                      value={newContact.phone}
+                      onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Tipo <span className="text-red-500">*</span></Label>
+                    <Select 
+                      value={newContact.type}
+                      onValueChange={(value) => setNewContact({...newContact, type: value})}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="client">Cliente</SelectItem>
+                        <SelectItem value="supplier">Fornecedor</SelectItem>
+                        <SelectItem value="employee">Funcionário</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Empresa</Label>
+                    <Input 
+                      id="company" 
+                      value={newContact.company}
+                      onChange={(e) => setNewContact({...newContact, company: e.target.value})}
+                      placeholder="Nome da empresa"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button 
+                  className="bg-purple hover:bg-purple/90" 
+                  onClick={handleCreateContact}
+                  disabled={createContactMutation.isPending}
+                >
+                  {createContactMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : 'Criar Contato'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -593,6 +717,35 @@ const Contatos = () => {
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* Import Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-purple-dark">Importar Contatos</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <FileImport 
+              onImportSuccess={handleImportContacts}
+              isLoading={bulkImportMutation.isPending}
+            />
+            <div className="mt-4 p-3 bg-gray-50 rounded-md text-sm">
+              <p className="font-medium mb-1">Formato esperado:</p>
+              <p>A planilha deve conter colunas com os seguintes cabeçalhos:</p>
+              <ul className="list-disc pl-5 mt-1 space-y-1 text-muted-foreground">
+                <li>nome ou name (obrigatório)</li>
+                <li>email</li>
+                <li>telefone ou phone</li>
+                <li>empresa ou company</li>
+                <li>tipo ou type (cliente/fornecedor/funcionário)</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
         <AlertDialogContent>

@@ -35,20 +35,15 @@ const Login = () => {
     }
     
     try {
+      console.log('Submitting login form with email:', email);
       // Attempt login via AuthContext
-      const success = await login(email, password);
-      
-      if (success) {
-        // The redirection happens automatically in the useEffect hook
-        toast({
-          title: "Login bem-sucedido",
-          description: "Bem-vindo de volta!",
-        });
-      }
+      await login(email, password);
+      // The redirection happens in the login function
     } catch (error) {
+      console.error('Login submission error:', error);
       toast({
         title: "Erro de autenticação",
-        description: "Email ou senha incorretos",
+        description: "Ocorreu um erro ao tentar fazer login",
         variant: "destructive",
       });
     }

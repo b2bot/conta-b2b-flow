@@ -62,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
+      console.log('Attempting login with email:', email);
       const response = await authAPI.login(email, password);
       
       if (response.success) {
@@ -75,6 +76,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
         
+        toast({
+          title: "Login bem-sucedido",
+          description: "Bem-vindo de volta!",
+        });
+        
+        // Navigate after setting user data
+        navigate('/dashboard');
         return true;
       } else {
         toast({
