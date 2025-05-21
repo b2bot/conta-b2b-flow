@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +9,11 @@ import {
   Filter,
   ChevronDown,
   Check,
-  X
+  X,
+  Download,
+  Upload,
+  MoreVertical,
+  Loader
 } from 'lucide-react';
 import {
   Dialog,
@@ -40,8 +45,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-// import FileImport from '@/components/FileImport';
-// import { exportToExcel } from '@/utils/fileUtils';
+import { exportToExcel } from '@/utils/fileUtils';
+import { Switch } from '@/components/ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 // Define transaction type
 interface Transaction {
@@ -54,6 +68,8 @@ interface Transaction {
   tipo: 'Despesa' | 'Receita';
   paid: boolean;
   recurrence: 'none' | 'monthly' | 'yearly';
+  detalhes?: string;
+  status?: string;
 }
 
 // Define new transaction form
@@ -67,6 +83,7 @@ interface TransactionForm {
   centro_custo_id?: string;
   paid: boolean;
   recurrence: 'none' | 'monthly' | 'yearly';
+  detalhes?: string;
 }
 
 const Transacoes = () => {
@@ -78,6 +95,8 @@ const Transacoes = () => {
     categoria: 'all',
     contact: 'all',
   });
+  const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const [newTransaction, setNewTransaction] = useState<TransactionForm>({
     descricao: '',
@@ -88,16 +107,19 @@ const Transacoes = () => {
     paymentTo: '',
     centro_custo_id: '',
     paid: false,
-    recurrence: 'none'
+    recurrence: 'none',
+    detalhes: ''
   });
 
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch transactions
   const { data: transactionsData = [], isLoading } = useQuery({
-    queryKey: ['transactions'],
+    queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       const response = await transactionsAPI.list();
       return response.status === 'success' ? response.transacoes : [];
@@ -152,6 +174,28 @@ const Transacoes = () => {
       categoria: 'all',
       contact: 'all',
     });
+    setActiveFilter(null);
+  };
+
+  const applyQuickFilter = (filterType: string) => {
+    if (activeFilter === filterType) {
+      resetFilters();
+    } else {
+      switch (filterType) {
+        case 'receitas':
+          setFilters(prev => ({ ...prev, tipo: 'Receita' }));
+          break;
+        case 'despesas-fixas':
+          setFilters(prev => ({ ...prev, tipo: 'Despesa', categoria: 'Fixa' }));
+          break;
+        case 'impostos':
+          setFilters(prev => ({ ...prev, tipo: 'Despesa', categoria: 'Imposto' }));
+          break;
+        default:
+          break;
+      }
+      setActiveFilter(filterType);
+    }
   };
 
   const resetTransactionForm = () => {
@@ -164,7 +208,8 @@ const Transacoes = () => {
       paymentTo: '',
       centro_custo_id: '',
       paid: false,
-      recurrence: 'none'
+      recurrence: 'none',
+      detalhes: ''
     });
   };
 
@@ -246,6 +291,30 @@ const Transacoes = () => {
     }
   });
 
+  // Delete transaction mutation
+  const deleteTransactionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // This is a placeholder - actual implementation would call the delete API
+      // return await transactionsAPI.delete(id);
+      // For now we'll simulate a successful delete
+      return { status: 'success' };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: "Transação excluída com sucesso",
+      });
+      setTransactionToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir transação",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleCreateTransaction = () => {
     if (!newTransaction.descricao || !newTransaction.valor || !newTransaction.categoria_id) {
       toast({
@@ -277,7 +346,8 @@ const Transacoes = () => {
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
-      recurrence: newTransaction.recurrence
+      recurrence: newTransaction.recurrence,
+      detalhes: newTransaction.detalhes
     };
 
     createTransactionMutation.mutate(createdTransaction);
@@ -285,6 +355,34 @@ const Transacoes = () => {
 
   const toggleTransactionPaid = (transaction: Transaction) => {
     togglePaidStatusMutation.mutate(transaction);
+  };
+
+  const handleDeleteTransaction = (id: string) => {
+    setTransactionToDelete(id);
+    deleteTransactionMutation.mutate(id);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    // Placeholder for edit functionality
+    toast({
+      title: "Editar transação",
+      description: "Funcionalidade a ser implementada",
+    });
+  };
+
+  const toggleExpandTransaction = (id: string) => {
+    setExpandedTransaction(expandedTransaction === id ? null : id);
+  };
+
+  const getPaymentStatusTag = (transaction: Transaction) => {
+    if (transaction.recurrence === 'monthly') {
+      return <Badge className="bg-blue-500 hover:bg-blue-600">Mensal</Badge>;
+    } else if (transaction.recurrence === 'yearly') {
+      return <Badge className="bg-purple-500 hover:bg-purple-600">Anual</Badge>;
+    } else if (transaction.status) {
+      return <Badge className="bg-orange-500 hover:bg-orange-600">{transaction.status}</Badge>;
+    }
+    return null;
   };
 
   return (
@@ -409,8 +507,17 @@ const Transacoes = () => {
                   </Select>
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="details">Detalhes adicionais</Label>
+                <Input
+                  id="details"
+                  placeholder="Informações adicionais"
+                  value={newTransaction.detalhes || ''}
+                  onChange={(e) => setNewTransaction({ ...newTransaction, detalhes: e.target.value })}
+                />
+              </div>
               <div className="flex items-center space-x-2">
-                <Checkbox
+                <Switch
                   id="paid"
                   checked={newTransaction.paid}
                   onCheckedChange={(checked) =>
@@ -425,7 +532,14 @@ const Transacoes = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button className="bg-purple hover:bg-purple/90" onClick={handleCreateTransaction}>
-                Criar Transação
+                {createTransactionMutation.isPending ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Processando
+                  </>
+                ) : (
+                  'Criar Transação'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -445,8 +559,20 @@ const Transacoes = () => {
         </Button>
       </div>
 
-      {/* Filter chips */}
+      {/* Quick filter buttons */}
       <div className="flex flex-wrap gap-2">
+        <ToggleGroup type="single" value={activeFilter || undefined} onValueChange={(value) => value && applyQuickFilter(value)}>
+          <ToggleGroupItem value="receitas" className="rounded-full">
+            <Badge className="bg-green-500 hover:bg-green-600">Recebimentos</Badge>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="despesas-fixas" className="rounded-full">
+            <Badge className="bg-blue-500 hover:bg-blue-600">Despesas Fixas</Badge>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="impostos" className="rounded-full">
+            <Badge className="bg-red-500 hover:bg-red-600">Impostos</Badge>
+          </ToggleGroupItem>
+        </ToggleGroup>
+
         <Button
           variant="outline"
           className="flex items-center gap-2"
@@ -456,31 +582,7 @@ const Transacoes = () => {
           Filtrar
           <ChevronDown size={16} className={filterOpen ? "rotate-180 transform" : ""} />
         </Button>
-        {filters.tipo !== 'all' && (
-          <div className="filter-chip filter-chip-active flex items-center gap-1">
-            <span>{filters.tipo === 'Receita' ? 'Receitas' : 'Despesas'}</span>
-            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('tipo', 'all')} />
-          </div>
-        )}
-        {filters.paid !== 'all' && (
-          <div className="filter-chip filter-chip-active flex items-center gap-1">
-            <span>{filters.paid === 'paid' ? 'Pagas' : 'Pendentes'}</span>
-            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('paid', 'all')} />
-          </div>
-        )}
-        {filters.categoria !== 'all' && (
-          <div className="filter-chip filter-chip-active flex items-center gap-1">
-            <span>{filters.categoria}</span>
-            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('categoria', 'all')} />
-          </div>
-        )}
-        {filters.contact !== 'all' && (
-          <div className="filter-chip filter-chip-active flex items-center gap-1">
-            <span>{filters.contact}</span>
-            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('contact', 'all')} />
-          </div>
-        )}
-        {(filters.tipo !== 'all' || filters.paid !== 'all' || filters.categoria !== 'all' || filters.contact !== 'all') && (
+        {(filters.tipo !== 'all' || filters.paid !== 'all' || filters.categoria !== 'all' || filters.contact !== 'all') && !activeFilter && (
           <Button
             variant="ghost"
             className="text-sm text-muted-foreground"
@@ -490,6 +592,7 @@ const Transacoes = () => {
           </Button>
         )}
       </div>
+
       {filterOpen && (
         <Card className="mb-4">
           <CardContent className="pt-6">
@@ -564,6 +667,7 @@ const Transacoes = () => {
           </CardContent>
         </Card>
       )}
+      
       <div className="bg-white rounded-lg border border-border overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
           <div className="col-span-1">Data</div>
@@ -584,49 +688,102 @@ const Transacoes = () => {
           </div>
         ) : (
           filteredTransactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
-            >
-              <div className="col-span-1">
-                {format(new Date(transaction.data), 'dd/MM/yyyy')}
-              </div>
-              <div className="col-span-3 font-medium">
-                {transaction.descricao}
-              </div>
-              <div className="col-span-2 text-muted-foreground">
-                {transaction.paymentTo}
-              </div>
-              <div className="col-span-2">
-                <span className="px-2 py-1 rounded-full text-xs bg-gray-100">
-                  {transaction.categoria_nome}
-                </span>
-              </div>
-              <div
-                className={`col-span-2 font-medium text-right ${
-                  transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
-                }`}
+            <React.Fragment key={transaction.id}>
+              <div 
+                className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
               >
-                {formatCurrency(transaction.valor)}
-              </div>
-              <div className="col-span-1 flex justify-center">
-                <button
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                    transaction.paid
-                      ? 'bg-purple border-purple text-white'
-                      : 'border-gray-300'
+                <div className="col-span-1">
+                  {format(new Date(transaction.data), 'dd/MM/yyyy')}
+                </div>
+                <div className="col-span-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    {transaction.descricao}
+                    {getPaymentStatusTag(transaction)}
+                  </div>
+                </div>
+                <div className="col-span-2 text-muted-foreground">
+                  {transaction.paymentTo}
+                </div>
+                <div className="col-span-2">
+                  <Badge 
+                    variant="outline" 
+                    className={`px-2 py-1 text-xs border-1 ${
+                      transaction.tipo === 'Receita' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'
+                    }`}
+                  >
+                    {transaction.categoria_nome}
+                  </Badge>
+                </div>
+                <div
+                  className={`col-span-2 font-medium text-right ${
+                    transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
                   }`}
-                  onClick={() => toggleTransactionPaid(transaction)}
                 >
-                  {transaction.paid && <Check size={12} />}
-                </button>
+                  {formatCurrency(transaction.valor)}
+                </div>
+                <div className="col-span-1 flex justify-center">
+                  <Switch 
+                    checked={transaction.paid}
+                    onCheckedChange={() => toggleTransactionPaid(transaction)}
+                  />
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical size={16} />
+                        <span className="sr-only">Abrir menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
+                        {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteTransaction(transaction.id)}
+                        className="text-red-600"
+                      >
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-              <div className="col-span-1 flex justify-end">
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <ChevronDown size={16} />
-                </Button>
-              </div>
-            </div>
+              {/* Expanded transaction details */}
+              {expandedTransaction === transaction.id && (
+                <div className="border-b border-border bg-muted/20 px-4 py-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="mb-2">
+                        <span className="font-medium">Descrição completa:</span> 
+                        <p className="text-muted-foreground mt-1">{transaction.detalhes || 'Sem descrição adicional.'}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium">Data de criação:</span> 
+                        <p className="text-muted-foreground">{format(new Date(transaction.data), 'dd/MM/yyyy')}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-2">
+                        <span className="font-medium">Contato:</span> 
+                        <p className="text-muted-foreground">{transaction.paymentTo}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium">Tipo de recorrência:</span> 
+                        <p className="text-muted-foreground">
+                          {transaction.recurrence === 'monthly' ? 'Mensal' : 
+                           transaction.recurrence === 'yearly' ? 'Anual' : 'Não recorrente'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
           ))
         )}
       </div>

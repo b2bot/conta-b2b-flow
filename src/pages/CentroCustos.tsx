@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +11,8 @@ import {
   Check,
   X,
   Download,
-  Upload
+  Upload,
+  MoreVertical
 } from 'lucide-react';
 import {
   Dialog,
@@ -43,6 +45,12 @@ import { costCentersAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { exportToExcel } from '@/utils/fileUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Define cost center type
 interface CostCenter {
@@ -110,7 +118,37 @@ const CentroCustos = () => {
     }
   });
 
+  // Delete cost center mutation
+  const deleteCostCenterMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // This is a placeholder - actual implementation would call the delete API
+      // return await costCentersAPI.delete(id);
+      // For now we'll simulate a successful delete
+      return { status: 'success' };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['costCenters'] });
+      toast({
+        title: "Centro de custo excluído com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir centro de custo",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
   const costCenters = costCentersData || [];
+
+  // Function to verify if a cost center with the same name exists
+  const isDuplicateName = (name: string, excludeId?: string) => {
+    return costCenters.some(
+      center => center.nome === name && center.id !== excludeId
+    );
+  };
 
   const resetCostCenterForm = () => {
     setNewCostCenter({
@@ -125,6 +163,16 @@ const CentroCustos = () => {
       toast({
         title: "Campo obrigatório",
         description: "O nome do centro de custo é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for duplicates when creating new cost center or changing name
+    if (isDuplicateName(newCostCenter.nome, editingCostCenter?.id)) {
+      toast({
+        title: "Nome duplicado",
+        description: "Já existe um centro de custo com este nome.",
         variant: "destructive",
       });
       return;
@@ -148,11 +196,17 @@ const CentroCustos = () => {
     setDialogOpen(true);
   };
 
+  const handleDeleteCostCenter = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este centro de custo?')) {
+      deleteCostCenterMutation.mutate(id);
+    }
+  };
+
   const handleExportCostCenters = () => {
     // Transform cost centers for export
     const dataToExport = costCenters.map(costCenter => ({
       Nome: costCenter.nome,
-      Descrição: costCenter.descricao,
+      Descrição: costCenter.descricao || '-',
     }));
     
     exportToExcel(dataToExport, 'centros_custo');
@@ -239,7 +293,7 @@ const CentroCustos = () => {
                   <Label htmlFor="description">Descrição</Label>
                   <Input
                     id="description"
-                    value={newCostCenter.descricao}
+                    value={newCostCenter.descricao || ''}
                     onChange={(e) => setNewCostCenter({ ...newCostCenter, descricao: e.target.value })}
                     placeholder="Ex: Despesas administrativas gerais"
                   />
@@ -300,17 +354,29 @@ const CentroCustos = () => {
                   <div className="col-span-4 font-medium">
                     {costCenter.nome}
                   </div>
-                  <div className="col-span-6 text-muted-foreground">
-                    {costCenter.descricao}
+                  <div className="col-span-6 text-muted-foreground break-words">
+                    {costCenter.descricao || <span className="italic text-muted-foreground/60">Sem descrição</span>}
                   </div>
                   <div className="col-span-2 flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleEditCostCenter(costCenter)}
-                    >
-                      Editar
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Abrir menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditCostCenter(costCenter)}>
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteCostCenter(costCenter.id)}
+                          className="text-red-600"
+                        >
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))

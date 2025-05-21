@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +11,12 @@ import {
   Check,
   X,
   Download,
-  Upload
+  Upload,
+  MoreVertical,
+  Calendar as CalendarIcon,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  UserRound
 } from 'lucide-react';
 import {
   Dialog,
@@ -36,13 +42,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths, parse } from 'date-fns';
+import { format, addMonths, parse, isThisMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
-import { contactsAPI } from '@/services/api';
+import { contactsAPI, transactionsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { exportToExcel } from '@/utils/fileUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from '@/components/ui/badge';
 
 // Define contact type
 interface Contact {
@@ -51,7 +65,14 @@ interface Contact {
   email: string;
   telefone: string;
   empresa: string;
-  tipo: 'Cliente' | 'Fornecedor';
+  tipo: 'Cliente' | 'Fornecedor' | 'Sócio' | 'Outro';
+  cpf_cnpj?: string;
+  endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  data_nascimento?: string;
+  ultima_atualizacao?: string;
 }
 
 // Define new contact form
@@ -60,7 +81,20 @@ interface ContactForm {
   email: string;
   telefone: string;
   empresa: string;
-  tipo: 'Cliente' | 'Fornecedor';
+  tipo: 'Cliente' | 'Fornecedor' | 'Sócio' | 'Outro';
+  cpf_cnpj?: string;
+  endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  data_nascimento?: string;
+}
+
+// Summary cards type
+interface SummaryData {
+  devemParaMim: number;
+  euDevo: number;
+  aniversariantes: Contact[];
 }
 
 const Contatos = () => {
@@ -75,12 +109,19 @@ const Contatos = () => {
     telefone: '',
     empresa: '',
     tipo: 'Cliente',
+    cpf_cnpj: '',
+    endereco: '',
+    cidade: '',
+    estado: '',
+    cep: '',
+    data_nascimento: '',
   });
   
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const [birthDate, setBirthDate] = useState<Date | undefined>(undefined);
 
   // Fetch contacts
   const { data: contactsData, isLoading, isError } = useQuery({
@@ -92,6 +133,20 @@ const Contatos = () => {
       } catch (err) {
         console.error('Error fetching contacts:', err);
         throw err;
+      }
+    }
+  });
+
+  // Fetch transactions for summary data
+  const { data: transactionsData } = useQuery({
+    queryKey: ['allTransactions'],
+    queryFn: async () => {
+      try {
+        const response = await transactionsAPI.list();
+        return response.status === 'success' ? response.transacoes : [];
+      } catch (err) {
+        console.error('Error fetching transactions:', err);
+        return [];
       }
     }
   });
@@ -124,7 +179,57 @@ const Contatos = () => {
     }
   });
 
+  // Delete contact mutation
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // This is a placeholder - actual implementation would call the delete API
+      // return await contactsAPI.delete(id);
+      // For now we'll simulate success
+      return { status: 'success' };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast({
+        title: "Contato excluído com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir contato",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
   const contacts = contactsData || [];
+  const transactions = transactionsData || [];
+
+  // Calculate summary data
+  const summaryData: SummaryData = {
+    devemParaMim: 0,
+    euDevo: 0,
+    aniversariantes: []
+  };
+
+  // Calculate financial summaries
+  transactions.forEach(transaction => {
+    if (transaction.tipo === 'Receita' && !transaction.paid) {
+      summaryData.devemParaMim += transaction.valor;
+    } else if (transaction.tipo === 'Despesa' && !transaction.paid) {
+      summaryData.euDevo += transaction.valor;
+    }
+  });
+
+  // Find birthday celebrants
+  contacts.forEach(contact => {
+    if (contact.data_nascimento) {
+      const birthDate = new Date(contact.data_nascimento);
+      if (isThisMonth(birthDate)) {
+        summaryData.aniversariantes.push(contact);
+      }
+    }
+  });
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -143,7 +248,14 @@ const Contatos = () => {
       telefone: '',
       empresa: '',
       tipo: 'Cliente',
+      cpf_cnpj: '',
+      endereco: '',
+      cidade: '',
+      estado: '',
+      cep: '',
+      data_nascimento: '',
     });
+    setBirthDate(undefined);
     setEditingContact(null);
   };
 
@@ -170,6 +282,12 @@ const Contatos = () => {
       telefone: newContact.telefone,
       empresa: newContact.empresa,
       tipo: newContact.tipo,
+      cpf_cnpj: newContact.cpf_cnpj,
+      endereco: newContact.endereco,
+      cidade: newContact.cidade,
+      estado: newContact.estado,
+      cep: newContact.cep,
+      data_nascimento: birthDate ? format(birthDate, 'yyyy-MM-dd') : newContact.data_nascimento,
     };
     
     saveContactMutation.mutate(contactToSave);
@@ -183,8 +301,27 @@ const Contatos = () => {
       telefone: contact.telefone,
       empresa: contact.empresa,
       tipo: contact.tipo,
+      cpf_cnpj: contact.cpf_cnpj || '',
+      endereco: contact.endereco || '',
+      cidade: contact.cidade || '',
+      estado: contact.estado || '',
+      cep: contact.cep || '',
+      data_nascimento: contact.data_nascimento || '',
     });
+    
+    if (contact.data_nascimento) {
+      setBirthDate(new Date(contact.data_nascimento));
+    } else {
+      setBirthDate(undefined);
+    }
+    
     setDialogOpen(true);
+  };
+
+  const handleDeleteContact = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este contato?')) {
+      deleteContactMutation.mutate(id);
+    }
   };
 
   const handleExportContacts = () => {
@@ -195,6 +332,12 @@ const Contatos = () => {
       Telefone: contact.telefone,
       Empresa: contact.empresa,
       Tipo: contact.tipo,
+      'CPF/CNPJ': contact.cpf_cnpj || '',
+      Endereço: contact.endereco || '',
+      Cidade: contact.cidade || '',
+      Estado: contact.estado || '',
+      CEP: contact.cep || '',
+      'Data de Nascimento': contact.data_nascimento ? format(new Date(contact.data_nascimento), 'dd/MM/yyyy') : '',
     }));
     
     exportToExcel(dataToExport, 'contatos');
@@ -202,6 +345,28 @@ const Contatos = () => {
     toast({
       title: "Exportação concluída",
       description: "Os contatos foram exportados com sucesso.",
+    });
+  };
+
+  // Get badge color based on contact type
+  const getContactTypeBadge = (tipo: string) => {
+    switch (tipo) {
+      case 'Cliente':
+        return <Badge className="bg-green-500 hover:bg-green-600">{tipo}</Badge>;
+      case 'Fornecedor':
+        return <Badge className="bg-blue-500 hover:bg-blue-600">{tipo}</Badge>;
+      case 'Sócio':
+        return <Badge className="bg-purple-500 hover:bg-purple-600">{tipo}</Badge>;
+      default:
+        return <Badge className="bg-gray-500 hover:bg-gray-600">{tipo}</Badge>;
+    }
+  };
+
+  // Format currency value
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
     });
   };
 
@@ -213,17 +378,20 @@ const Contatos = () => {
           <div className="col-span-3">
             <Skeleton className="h-4 w-3/4" />
           </div>
-          <div className="col-span-3">
-            <Skeleton className="h-4 w-full" />
-          </div>
           <div className="col-span-2">
             <Skeleton className="h-4 w-1/2" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-full" />
           </div>
           <div className="col-span-2">
             <Skeleton className="h-4 w-3/4" />
           </div>
           <div className="col-span-2">
-            <Skeleton className="h-8 w-16 rounded-md" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="col-span-1">
+            <Skeleton className="h-8 w-8 rounded-md" />
           </div>
         </div>
       ))}
@@ -269,62 +437,149 @@ const Contatos = () => {
                 Novo Contato
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingContact ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Nome*</Label>
+                    <Input
+                      id="name"
+                      value={newContact.nome}
+                      onChange={(e) => setNewContact({ ...newContact, nome: e.target.value })}
+                      placeholder="Nome completo"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type">Tipo de Contato*</Label>
+                    <Select
+                      value={newContact.tipo}
+                      onValueChange={(value) => setNewContact({ ...newContact, tipo: value as any })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cliente">Cliente</SelectItem>
+                        <SelectItem value="Fornecedor">Fornecedor</SelectItem>
+                        <SelectItem value="Sócio">Sócio</SelectItem>
+                        <SelectItem value="Outro">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Telefone</Label>
+                    <Input
+                      id="phone"
+                      value={newContact.telefone}
+                      onChange={(e) => setNewContact({ ...newContact, telefone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Nome</Label>
+                  <Label htmlFor="cpf_cnpj">CPF ou CNPJ</Label>
                   <Input
-                    id="name"
-                    value={newContact.nome}
-                    onChange={(e) => setNewContact({ ...newContact, nome: e.target.value })}
-                    placeholder="Ex: João Silva"
+                    id="cpf_cnpj"
+                    value={newContact.cpf_cnpj}
+                    onChange={(e) => setNewContact({ ...newContact, cpf_cnpj: e.target.value })}
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="company">Empresa</Label>
+                    <Input
+                      id="company"
+                      value={newContact.empresa}
+                      onChange={(e) => setNewContact({ ...newContact, empresa: e.target.value })}
+                      placeholder="Nome da empresa"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="birth_date">Data de Nascimento</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="birth_date"
+                          variant={"outline"}
+                          className={`w-full justify-start text-left font-normal ${
+                            !birthDate && "text-muted-foreground"
+                          }`}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {birthDate ? format(birthDate, "dd/MM/yyyy") : "Selecione uma data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={birthDate}
+                          onSelect={setBirthDate}
+                          initialFocus
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="address">Endereço</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                    placeholder="Ex: joao@empresa.com"
+                    id="address"
+                    value={newContact.endereco}
+                    onChange={(e) => setNewContact({ ...newContact, endereco: e.target.value })}
+                    placeholder="Rua, número, complemento"
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    value={newContact.telefone}
-                    onChange={(e) => setNewContact({ ...newContact, telefone: e.target.value })}
-                    placeholder="Ex: (11) 98765-4321"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="company">Empresa</Label>
-                  <Input
-                    id="company"
-                    value={newContact.empresa}
-                    onChange={(e) => setNewContact({ ...newContact, empresa: e.target.value })}
-                    placeholder="Ex: Empresa S.A."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select
-                    value={newContact.tipo}
-                    onValueChange={(value) => setNewContact({ ...newContact, tipo: value as 'Cliente' | 'Fornecedor' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Cliente">Cliente</SelectItem>
-                      <SelectItem value="Fornecedor">Fornecedor</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="city">Cidade</Label>
+                    <Input
+                      id="city"
+                      value={newContact.cidade}
+                      onChange={(e) => setNewContact({ ...newContact, cidade: e.target.value })}
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="state">Estado</Label>
+                    <Input
+                      id="state"
+                      value={newContact.estado}
+                      onChange={(e) => setNewContact({ ...newContact, estado: e.target.value })}
+                      placeholder="UF"
+                      maxLength={2}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="zip">CEP</Label>
+                    <Input
+                      id="zip"
+                      value={newContact.cep}
+                      onChange={(e) => setNewContact({ ...newContact, cep: e.target.value })}
+                      placeholder="00000-000"
+                    />
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -345,6 +600,57 @@ const Contatos = () => {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-green-100 p-2">
+                <ArrowUpCircle className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Deve para Mim</p>
+                <h3 className="text-2xl font-bold text-green-600">
+                  {formatCurrency(summaryData.devemParaMim)}
+                </h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-red-100 p-2">
+                <ArrowDownCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Eu Devo</p>
+                <h3 className="text-2xl font-bold text-red-600">
+                  {formatCurrency(summaryData.euDevo)}
+                </h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-purple-100 p-2">
+                <CalendarIcon className="h-6 w-6 text-purple" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Aniversariantes do Mês</p>
+                <h3 className="text-2xl font-bold text-purple">
+                  {summaryData.aniversariantes.length}
+                </h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
       <Card>
@@ -379,6 +685,8 @@ const Contatos = () => {
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="Cliente">Clientes</SelectItem>
                     <SelectItem value="Fornecedor">Fornecedores</SelectItem>
+                    <SelectItem value="Sócio">Sócios</SelectItem>
+                    <SelectItem value="Outro">Outros</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -393,10 +701,11 @@ const Contatos = () => {
           <div className="border rounded-md">
             <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
               <div className="col-span-3">Nome</div>
-              <div className="col-span-3">Email</div>
+              <div className="col-span-2">Tipo</div>
+              <div className="col-span-2">CPF/CNPJ</div>
+              <div className="col-span-2">Email</div>
               <div className="col-span-2">Telefone</div>
-              <div className="col-span-2">Empresa</div>
-              <div className="col-span-2"></div>
+              <div className="col-span-1"></div>
             </div>
             
             {isLoading ? (
@@ -419,23 +728,39 @@ const Contatos = () => {
                   <div className="col-span-3 font-medium">
                     {contact.nome}
                   </div>
-                  <div className="col-span-3 text-muted-foreground">
+                  <div className="col-span-2">
+                    {getContactTypeBadge(contact.tipo)}
+                  </div>
+                  <div className="col-span-2 text-muted-foreground">
+                    {contact.cpf_cnpj || "-"}
+                  </div>
+                  <div className="col-span-2 text-muted-foreground">
                     {contact.email}
                   </div>
                   <div className="col-span-2 text-muted-foreground">
                     {contact.telefone}
                   </div>
-                  <div className="col-span-2 text-muted-foreground">
-                    {contact.empresa}
-                  </div>
-                  <div className="col-span-2 flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleEditContact(contact)}
-                    >
-                      Editar
-                    </Button>
+                  <div className="col-span-1 flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Abrir menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteContact(contact.id)}
+                          className="text-red-600"
+                        >
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))

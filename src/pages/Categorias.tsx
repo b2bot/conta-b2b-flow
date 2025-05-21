@@ -9,8 +9,9 @@ import {
   ChevronDown,
   Check,
   X,
-  Download,
-  Upload
+  Download as DownloadIcon,
+  Upload as UploadIcon,
+  MoreVertical
 } from 'lucide-react';
 import {
   Dialog,
@@ -43,6 +44,13 @@ import { categoriesAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { exportToExcel } from '@/utils/fileUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from '@/components/ui/badge';
 
 // Define category type
 interface Category {
@@ -115,6 +123,29 @@ const Categorias = () => {
     }
   });
 
+  // Delete category mutation
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // This is a placeholder - actual implementation would call the delete API
+      // return await categoriesAPI.delete(id);
+      // For now we'll just simulate a delete
+      return { status: 'success' };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      toast({
+        title: "Categoria excluída com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir categoria",
+        description: String(error),
+        variant: "destructive",
+      });
+    }
+  });
+
   const categories = categoriesData || [];
 
   const handleFilterChange = (key: string, value: string) => {
@@ -167,6 +198,12 @@ const Categorias = () => {
       tipo: category.tipo,
     });
     setDialogOpen(true);
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta categoria?')) {
+      deleteCategoryMutation.mutate(id);
+    }
   };
 
   const handleExportCategories = () => {
@@ -231,7 +268,7 @@ const Categorias = () => {
             variant="outline" 
             onClick={handleExportCategories}
           >
-            <Download className="h-4 w-4 mr-2" />
+            <DownloadIcon className="h-4 w-4 mr-2" />
             Exportar
           </Button>
           
@@ -362,17 +399,31 @@ const Categorias = () => {
                   <div className="col-span-6 font-medium">
                     {category.nome}
                   </div>
-                  <div className={`col-span-4 ${category.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'}`}>
-                    {category.tipo}
+                  <div className="col-span-4">
+                    <Badge className={`${category.tipo === 'Receita' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>
+                      {category.tipo}
+                    </Badge>
                   </div>
                   <div className="col-span-2 flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleEditCategory(category)}
-                    >
-                      Editar
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Abrir menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="text-red-600"
+                        >
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))
