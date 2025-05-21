@@ -8,9 +8,7 @@ import {
   Filter,
   ChevronDown,
   Check,
-  X,
-  Download,
-  Upload
+  X
 } from 'lucide-react';
 import {
   Dialog,
@@ -42,8 +40,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import FileImport from '@/components/FileImport';
-import { exportToExcel } from '@/utils/fileUtils';
+// import FileImport from '@/components/FileImport';
+// import { exportToExcel } from '@/utils/fileUtils';
 
 // Define transaction type
 interface Transaction {
@@ -65,7 +63,8 @@ interface TransactionForm {
   data: Date;
   tipo: 'Despesa' | 'Receita';
   categoria_id: string;
-  centro_custo_id: string;
+  paymentTo: string;
+  centro_custo_id?: string;
   paid: boolean;
   recurrence: 'none' | 'monthly' | 'yearly';
 }
@@ -79,37 +78,116 @@ const Transacoes = () => {
     categoria: 'all',
     contact: 'all',
   });
-  
+
   const [newTransaction, setNewTransaction] = useState<TransactionForm>({
     descricao: '',
     valor: '',
     data: new Date(),
     tipo: 'Despesa',
     categoria_id: '',
+    paymentTo: '',
     centro_custo_id: '',
     paid: false,
     recurrence: 'none'
   });
-  
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch transactions
-  const { data: transactionsData, isLoading, isError } = useQuery({
+  const { data: transactionsData = [], isLoading } = useQuery({
     queryKey: ['transactions'],
     queryFn: async () => {
-      try {
-        console.log('Fetching transactions...');
-        const response = await transactionsAPI.list();
-        console.log('Response:', response);
-        return response.status === 'success' ? response.transacoes : [];
-      } catch (err) {
-        console.error('Error fetching transactions:', err);
-        throw err;
-      }
+      const response = await transactionsAPI.list();
+      return response.status === 'success' ? response.transacoes : [];
     }
+  });
+
+  // Fetch categories for dropdown
+  const { data: categoriesData = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await categoriesAPI.list();
+      return response.status === 'success' ? response.categorias : [];
+    }
+  });
+
+  // Fetch contacts for dropdown
+  const { data: contactsData = [] } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      const response = await contactsAPI.list();
+      return response.status === 'success' ? response.contatos : [];
+    }
+  });
+
+  const transactions = transactionsData || [];
+  const categories = categoriesData || [];
+  const contacts = contactsData || [];
+
+  const nextMonth = () => {
+    setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
+  };
+
+  const prevMonth = () => {
+    setCurrentMonth(prevMonth => addMonths(prevMonth, -1));
+  };
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    });
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      tipo: 'all',
+      paid: 'all',
+      categoria: 'all',
+      contact: 'all',
+    });
+  };
+
+  const resetTransactionForm = () => {
+    setNewTransaction({
+      descricao: '',
+      valor: '',
+      data: new Date(),
+      tipo: 'Despesa',
+      categoria_id: '',
+      paymentTo: '',
+      centro_custo_id: '',
+      paid: false,
+      recurrence: 'none'
+    });
+  };
+
+  const filteredTransactions = transactions.filter(transaction => {
+    // Filter by month/year
+    const transactionDate = new Date(transaction.data);
+    if (
+      transactionDate.getMonth() !== currentMonth.getMonth() ||
+      transactionDate.getFullYear() !== currentMonth.getFullYear()
+    ) {
+      return false;
+    }
+
+    // Apply other filters
+    if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
+    if (filters.paid !== 'all') {
+      if (filters.paid === 'paid' && !transaction.paid) return false;
+      if (filters.paid === 'pending' && transaction.paid) return false;
+    }
+    if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
+    if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
+
+    return true;
   });
 
   // Create transaction mutation
@@ -168,126 +246,6 @@ const Transacoes = () => {
     }
   });
 
-  // Bulk import transactions mutation
-  const bulkImportMutation = useMutation({
-    mutationFn: (transactions: any[]) => {
-      // Create a promise for each transaction
-      const promises = transactions.map(transaction => transactionsAPI.save(transaction));
-      return Promise.all(promises);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      setImportDialogOpen(false);
-      toast({
-        title: "Transações importadas com sucesso",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao importar transações",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Fetch categories for dropdown
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      try {
-        const response = await categoriesAPI.list();
-        return response.status === 'success' ? response.categorias : [];
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        return [];
-      }
-    },
-    initialData: []
-  });
-
-  // Fetch contacts for dropdown
-  const { data: contactsData } = useQuery({
-    queryKey: ['contacts'],
-    queryFn: async () => {
-      try {
-        const response = await contactsAPI.list();
-        return response.status === 'success' ? response.contatos : [];
-      } catch (error) {
-        console.error('Error fetching contacts:', error);
-        return [];
-      }
-    },
-    initialData: []
-  });
-
-  const transactions = transactionsData || [];
-  const categories = categoriesData || [];
-  const contacts = contactsData || [];
-
-  const nextMonth = () => {
-    setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
-  };
-
-  const prevMonth = () => {
-    setCurrentMonth(prevMonth => addMonths(prevMonth, -1));
-  };
-  
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
-  
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-  
-  const resetFilters = () => {
-    setFilters({
-      tipo: 'all',
-      paid: 'all',
-      categoria: 'all',
-      contact: 'all',
-    });
-  };
-
-  const resetTransactionForm = () => {
-    setNewTransaction({
-      descricao: '',
-      valor: '',
-      data: new Date(),
-      tipo: 'Despesa',
-      categoria_id: '',
-      centro_custo_id: '',
-      paid: false,
-      recurrence: 'none'
-    });
-  };
-
-  const filteredTransactions = transactions.filter(transaction => {
-    // Filter by month/year
-    const transactionDate = new Date(transaction.data);
-    if (
-      transactionDate.getMonth() !== currentMonth.getMonth() ||
-      transactionDate.getFullYear() !== currentMonth.getFullYear()
-    ) {
-      return false;
-    }
-    
-    // Apply other filters
-    if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
-    if (filters.paid !== 'all') {
-      if (filters.paid === 'paid' && !transaction.paid) return false;
-      if (filters.paid === 'pending' && transaction.paid) return false;
-    }
-    if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-    if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
-    
-    return true;
-  });
-  
   const handleCreateTransaction = () => {
     if (!newTransaction.descricao || !newTransaction.valor || !newTransaction.categoria_id) {
       toast({
@@ -308,230 +266,372 @@ const Transacoes = () => {
       });
       return;
     }
-    
+
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
-    
+
     const createdTransaction = {
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
-      centro_custo_id: newTransaction.centro_custo_id,
+      paymentTo: newTransaction.paymentTo,
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
       recurrence: newTransaction.recurrence
     };
-    
+
     createTransactionMutation.mutate(createdTransaction);
   };
-  
+
   const toggleTransactionPaid = (transaction: Transaction) => {
     togglePaidStatusMutation.mutate(transaction);
   };
-
-  const handleImportTransactions = (data: any[]) => {
-    // Map imported data to transaction format
-    const transactions = data.map(item => {
-      // Handle different column naming conventions
-      const descricao = item.descricao || item.description || '';
-      const categoria_id = item.categoria_id || item.category_id || '';
-      const centro_custo_id = item.centro_custo_id || item.cost_center_id || '';
-      const tipo = getTransactionTypeFromString(item.tipo || item.type || 'Despesa');
-      
-      // Handle amount format (both comma and dot decimal separators)
-      let valor = 0;
-      if (typeof item.valor === 'string') {
-        valor = parseFloat(item.valor.replace(',', '.'));
-      } else if (typeof item.amount === 'string') {
-        valor = parseFloat(item.amount.replace(',', '.'));
-      } else if (typeof item.valor === 'number') {
-        valor = item.valor;
-      } else if (typeof item.amount === 'number') {
-        valor = item.amount;
-      }
-      
-      // Handle date in multiple formats
-      let data = new Date();
-      try {
-        if (item.data) {
-          // Try to parse date in different formats
-          if (typeof item.data === 'string') {
-            // Try DD/MM/YYYY format
-            if (item.data.includes('/')) {
-              data = parse(item.data, 'dd/MM/yyyy', new Date());
-            } else {
-              // Try YYYY-MM-DD format
-              data = new Date(item.data);
-            }
-          } else if (item.data instanceof Date) {
-            data = item.data;
-          }
-        } else if (item.date) {
-          // Similar logic for 'date' field
-          if (typeof item.date === 'string') {
-            if (item.date.includes('/')) {
-              data = parse(item.date, 'dd/MM/yyyy', new Date());
-            } else {
-              data = new Date(item.date);
-            }
-          } else if (item.date instanceof Date) {
-            data = item.date;
-          }
-        }
-      } catch (error) {
-        console.error('Error parsing date:', error);
-        data = new Date();
-      }
-      
-      // Get paid status
-      const paid = item.pago === true || 
-                  item.pago === 'true' || 
-                  item.pago === 'sim' || 
-                  item.paid === true || 
-                  item.paid === 'true' || 
-                  item.paid === 'yes';
-      
-      return {
-        descricao,
-        categoria_id,
-        centro_custo_id,
-        tipo,
-        valor: isNaN(valor) ? 0 : valor,
-        data: format(data, 'yyyy-MM-dd'),
-        paid,
-        recurrence: 'none'
-      };
-    });
-
-    // Validate transactions
-    const validTransactions = transactions.filter(transaction => {
-      return (
-        transaction.descricao.trim() !== '' &&
-        transaction.valor > 0
-      );
-    });
-    
-    if (validTransactions.length === 0) {
-      toast({
-        title: "Erro na importação",
-        description: "Nenhuma transação válida encontrada no arquivo.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Import transactions
-    bulkImportMutation.mutate(validTransactions);
-  };
-
-  const getTransactionTypeFromString = (typeString: string): 'Despesa' | 'Receita' => {
-    const typeStringLower = typeString.toLowerCase();
-    
-    if (
-      typeStringLower.includes('receita') || 
-      typeStringLower.includes('entrada') ||
-      typeStringLower.includes('income') || 
-      typeStringLower.includes('revenue')
-    ) {
-      return 'Receita';
-    }
-    
-    return 'Despesa';
-  };
-
-  const handleExportTransactions = () => {
-    // Transform transactions for export
-    const dataToExport = filteredTransactions.map(transaction => ({
-      Data: format(new Date(transaction.data), 'dd/MM/yyyy'),
-      Descrição: transaction.descricao,
-      Categoria: transaction.categoria_nome,
-      Valor: transaction.valor,
-      Tipo: transaction.tipo,
-      Status: transaction.paid ? 'Pago/Recebido' : 'Pendente'
-    }));
-    
-    exportToExcel(dataToExport, 'transacoes');
-    
-    toast({
-      title: "Exportação concluída",
-      description: "As transações foram exportadas com sucesso.",
-    });
-  };
-
-  // Render loading skeleton
-  const renderLoadingSkeleton = () => (
-    <>
-      {[1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <div className="col-span-3">
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-16" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-5 w-5 rounded-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-8 w-8 rounded-full" />
-          </div>
-        </div>
-      ))}
-    </>
-  );
-
-  // Render error state
-  const renderErrorState = () => (
-    <div className="p-8 text-center">
-      <X className="mx-auto h-12 w-12 text-red-500" />
-      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar transações</h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Não foi possível carregar a lista de transações. Tente novamente mais tarde.
-      </p>
-      <div className="mt-6">
-        <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['transactions'] })}
-          className="bg-purple hover:bg-purple/90"
-        >
-          Tentar novamente
-        </Button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Transações</h1>
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-2" />
-                Importar/Exportar
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-purple hover:bg-purple/90">
+              <Plus size={18} className="mr-2" />
+              Nova Transação
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle className="text-purple-dark">Nova Transação</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="transaction-type">Tipo</Label>
+                  <Select
+                    value={newTransaction.tipo}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, tipo: value as 'Despesa' | 'Receita' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Despesa">Despesa</SelectItem>
+                      <SelectItem value="Receita">Receita</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Valor</Label>
+                  <Input
+                    id="amount"
+                    placeholder="0,00"
+                    value={newTransaction.valor}
+                    onChange={(e) => setNewTransaction({ ...newTransaction, valor: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Input
+                  id="description"
+                  placeholder="Descrição da transação"
+                  value={newTransaction.descricao}
+                  onChange={(e) => setNewTransaction({ ...newTransaction, descricao: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select
+                    value={newTransaction.categoria_id}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, categoria_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>{category.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payment-to">Contato</Label>
+                  <Select
+                    value={newTransaction.paymentTo}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, paymentTo: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contacts.map((contact) => (
+                        <SelectItem key={contact.id} value={contact.id}>{contact.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <div>{format(newTransaction.data, 'dd/MM/yyyy')}</div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newTransaction.data}
+                        onSelect={(date) => date && setNewTransaction({ ...newTransaction, data: date })}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurrence">Recorrência</Label>
+                  <Select
+                    value={newTransaction.recurrence}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, recurrence: value as 'none' | 'monthly' | 'yearly' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não recorrente</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="paid"
+                  checked={newTransaction.paid}
+                  onCheckedChange={(checked) =>
+                    setNewTransaction({ ...newTransaction, paid: checked as boolean })
+                  }
+                />
+                <Label htmlFor="paid">
+                  {newTransaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
+                </Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button className="bg-purple hover:bg-purple/90" onClick={handleCreateTransaction}>
+                Criar Transação
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56">
-              <div className="flex flex-col gap-2">
-                <Button 
-                  variant="ghost" 
-                  className="justify-start"
-                  onClick={() => setImportDialogOpen(true)}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Month selector */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-border">
+        <Button variant="ghost" onClick={prevMonth} className="text-purple">
+          <ChevronLeft size={20} />
+        </Button>
+        <h2 className="text-xl font-bold text-purple-dark">
+          {format(currentMonth, 'MMMM/yyyy', { locale: ptBR }).toUpperCase()}
+        </h2>
+        <Button variant="ghost" onClick={nextMonth} className="text-purple">
+          <ChevronRight size={20} />
+        </Button>
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          className="flex items-center gap-2"
+          onClick={() => setFilterOpen(!filterOpen)}
+        >
+          <Filter size={16} />
+          Filtrar
+          <ChevronDown size={16} className={filterOpen ? "rotate-180 transform" : ""} />
+        </Button>
+        {filters.tipo !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.tipo === 'Receita' ? 'Receitas' : 'Despesas'}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('tipo', 'all')} />
+          </div>
+        )}
+        {filters.paid !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.paid === 'paid' ? 'Pagas' : 'Pendentes'}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('paid', 'all')} />
+          </div>
+        )}
+        {filters.categoria !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.categoria}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('categoria', 'all')} />
+          </div>
+        )}
+        {filters.contact !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.contact}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('contact', 'all')} />
+          </div>
+        )}
+        {(filters.tipo !== 'all' || filters.paid !== 'all' || filters.categoria !== 'all' || filters.contact !== 'all') && (
+          <Button
+            variant="ghost"
+            className="text-sm text-muted-foreground"
+            onClick={resetFilters}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+      {filterOpen && (
+        <Card className="mb-4">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="filter-tipo">Tipo</Label>
+                <Select
+                  value={filters.tipo}
+                  onValueChange={(value) => handleFilterChange('tipo', value)}
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar planilha
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="Receita">Receitas</SelectItem>
+                    <SelectItem value="Despesa">Despesas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filter-paid">Status</Label>
+                <Select
+                  value={filters.paid}
+                  onValueChange={(value) => handleFilterChange('paid', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="paid">Pagos/Recebidos</SelectItem>
+                    <SelectItem value="pending">Pendentes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filter-categoria">Categoria</Label>
+                <Select
+                  value={filters.categoria}
+                  onValueChange={(value) => handleFilterChange('categoria', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.nome}>{category.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filter-contact">Contato</Label>
+                <Select
+                  value={filters.contact}
+                  onValueChange={(value) => handleFilterChange('contact', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {contacts.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.nome}>{contact.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      <div className="bg-white rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
+          <div className="col-span-1">Data</div>
+          <div className="col-span-3">Descrição</div>
+          <div className="col-span-2">Pago a</div>
+          <div className="col-span-2">Categoria</div>
+          <div className="col-span-2 text-right">Valor</div>
+          <div className="col-span-1 text-center">Status</div>
+          <div className="col-span-1"></div>
+        </div>
+        {isLoading ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Carregando transações...
+          </div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Nenhuma transação encontrada para este período.
+          </div>
+        ) : (
+          filteredTransactions.map((transaction) => (
+            <div
+              key={transaction.id}
+              className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
+            >
+              <div className="col-span-1">
+                {format(new Date(transaction.data), 'dd/MM/yyyy')}
+              </div>
+              <div className="col-span-3 font-medium">
+                {transaction.descricao}
+              </div>
+              <div className="col-span-2 text-muted-foreground">
+                {transaction.paymentTo}
+              </div>
+              <div className="col-span-2">
+                <span className="px-2 py-1 rounded-full text-xs bg-gray-100">
+                  {transaction.categoria_nome}
+                </span>
+              </div>
+              <div
+                className={`col-span-2 font-medium text-right ${
+                  transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {formatCurrency(transaction.valor)}
+              </div>
+              <div className="col-span-1 flex justify-center">
+                <button
+                  className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                    transaction.paid
+                      ? 'bg-purple border-purple text-white'
+                      : 'border-gray-300'
+                  }`}
+                  onClick={() => toggleTransactionPaid(transaction)}
+                >
+                  {transaction.paid && <Check size={12} />}
+                </button>
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <ChevronDown size={16} />
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  className="justify-start"
-     
-(Content truncated due to size limit. Use line ranges to read in chunks)
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Transacoes;

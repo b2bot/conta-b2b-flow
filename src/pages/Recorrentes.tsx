@@ -1,20 +1,19 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
-  ChevronLeft, 
-  ChevronRight, 
   Plus, 
   Filter,
   ChevronDown,
+  Calendar as CalendarIcon,
   Check,
   X,
-  Download,
-  Upload
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -30,179 +29,161 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths, parse } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
-import { recurringAPI, categoriesAPI, costCentersAPI } from '@/services/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@/components/ui/skeleton';
-import { exportToExcel } from '@/utils/fileUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-// Define recurring transaction type
-interface RecurringTransaction {
-  id: string;
-  descricao: string;
-  valor: number;
-  tipo: 'Despesa' | 'Receita';
-  categoria_id: string;
-  categoria_nome: string;
-  centro_custo_id: string;
-  centro_custo_nome: string;
-  frequencia: 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
-  dia_mes: number;
-}
+// Mock data for recurring transactions
+const INITIAL_RECURRING_TRANSACTIONS = [
+  {
+    id: '1',
+    description: 'Aluguel Escritório',
+    paymentTo: 'Imobiliária Prime',
+    category: 'Aluguel',
+    amount: 3500.00,
+    type: 'expense',
+    dayOfMonth: 10,
+    frequency: 'monthly',
+    active: true,
+    proxima_data: new Date('2024-08-10'), // Exemplo de data
+  },
+  {
+    id: '2',
+    description: 'Assinatura Software',
+    paymentTo: 'Adobe',
+    category: 'Software',
+    amount: 89.90,
+    type: 'expense',
+    dayOfMonth: 15,
+    frequency: 'monthly',
+    active: true,
+  },
+  {
+    id: '3',
+    description: 'Salário Funcionários',
+    paymentTo: 'Equipe',
+    category: 'Salários',
+    amount: 12000.00,
+    type: 'expense',
+    dayOfMonth: 5,
+    frequency: 'monthly',
+    active: true,
+  },
+  {
+    id: '4',
+    description: 'Contrato Mensal Cliente X',
+    paymentTo: 'Cliente X Ltda',
+    category: 'Vendas',
+    amount: 5000.00,
+    type: 'income',
+    dayOfMonth: 20,
+    frequency: 'monthly',
+    active: true,
+  },
+  {
+    id: '5',
+    description: 'Contrato Anual Cliente Y',
+    paymentTo: 'Cliente Y Ltda',
+    category: 'Vendas',
+    amount: 24000.00,
+    type: 'income',
+    dayOfMonth: 15,
+    frequency: 'yearly',
+    active: true,
+  }
+];
 
-// Define new recurring transaction form
-interface RecurringTransactionForm {
-  descricao: string;
-  valor: string;
-  tipo: 'Despesa' | 'Receita';
-  categoria_id: string;
-  centro_custo_id: string;
-  frequencia: 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
-  dia_mes: number;
-}
+// Mock data for categories
+const CATEGORIES = [
+  'Aluguel',
+  'Software',
+  'Salários',
+  'Vendas',
+  'Marketing',
+  'Serviços',
+  'Equipamentos',
+  'Impostos',
+  'Vale Refeição',
+  'Consultoria'
+];
 
-const LancamentosRecorrentes = () => {
+// Mock data for contacts
+const CONTACTS = [
+  'Imobiliária Prime',
+  'Adobe',
+  'Equipe',
+  'Cliente X Ltda',
+  'Cliente Y Ltda',
+  'Fornecedor Z',
+  'Greatpages'
+];
+
+const Recorrentes = () => {
+  const [recurringTransactions, setRecurringTransactions] = useState(INITIAL_RECURRING_TRANSACTIONS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
-    tipo: 'all',
-    categoria: 'all',
-    frequencia: 'all',
+    type: 'all',
+    active: 'all',
+    frequency: 'all',
+    category: 'all',
   });
   
-  const [newRecurring, setNewRecurring] = useState<RecurringTransactionForm>({
-    descricao: '',
-    valor: '',
-    tipo: 'Despesa',
-    categoria_id: '',
-    centro_custo_id: '',
-    frequencia: 'Mensal',
-    dia_mes: 1,
+  const [newRecurring, setNewRecurring] = useState({
+    description: '',
+    amount: '',
+    dayOfMonth: '1',
+    type: 'expense',
+    category: '',
+    paymentTo: '',
+    frequency: 'monthly',
+    active: true,
+    proxima_data: null as Date | null // NOVO CAMPO
   });
   
-  const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
-
-  // Fetch recurring transactions
-  const { data: recurringData, isLoading, isError } = useQuery({
-    queryKey: ['recurring'],
-    queryFn: async () => {
-      try {
-        const response = await recurringAPI.list();
-        return response.status === 'success' ? response.recorrentes : [];
-      } catch (err) {
-        console.error('Error fetching recurring transactions:', err);
-        throw err;
-      }
-    }
-  });
-
-  // Fetch categories for dropdown
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      try {
-        const response = await categoriesAPI.list();
-        return response.status === 'success' ? response.categorias : [];
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        return [];
-      }
-    },
-    initialData: []
-  });
-
-  // Fetch cost centers for dropdown
-  const { data: costCentersData } = useQuery({
-    queryKey: ['costCenters'],
-    queryFn: async () => {
-      try {
-        const response = await costCentersAPI.list();
-        return response.status === 'success' ? response.centros_custo : [];
-      } catch (error) {
-        console.error('Error fetching cost centers:', error);
-        return [];
-      }
-    },
-    initialData: []
-  });
-
-  // Create/update recurring transaction mutation
-  const saveRecurringMutation = useMutation({
-    mutationFn: (recurring: any) => recurringAPI.save(recurring),
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['recurring'] });
-        toast({
-          title: editingRecurring ? "Lançamento recorrente atualizado com sucesso" : "Lançamento recorrente criado com sucesso",
-        });
-        setDialogOpen(false);
-        resetRecurringForm();
-      } else {
-        toast({
-          title: "Erro ao salvar lançamento recorrente",
-          description: data.message || "Ocorreu um erro ao salvar o lançamento recorrente",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao salvar lançamento recorrente",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  const recurring = recurringData || [];
-  const categories = categoriesData || [];
-  const costCenters = costCentersData || [];
-
+  
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    });
+  };
+  
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
   
   const resetFilters = () => {
     setFilters({
-      tipo: 'all',
-      categoria: 'all',
-      frequencia: 'all',
+      type: 'all',
+      active: 'all',
+      frequency: 'all',
+      category: 'all',
     });
   };
 
-  const resetRecurringForm = () => {
-    setNewRecurring({
-      descricao: '',
-      valor: '',
-      tipo: 'Despesa',
-      categoria_id: '',
-      centro_custo_id: '',
-      frequencia: 'Mensal',
-      dia_mes: 1,
-    });
-    setEditingRecurring(null);
-  };
-
-  const filteredRecurring = recurring.filter(item => {
-    // Apply filters
-    if (filters.tipo !== 'all' && item.tipo !== filters.tipo) return false;
-    if (filters.categoria !== 'all' && item.categoria_id !== filters.categoria) return false;
-    if (filters.frequencia !== 'all' && item.frequencia !== filters.frequencia) return false;
+  const filteredTransactions = recurringTransactions.filter(transaction => {
+    if (filters.type !== 'all' && transaction.type !== filters.type) return false;
+    if (filters.active !== 'all') {
+      if (filters.active === 'active' && !transaction.active) return false;
+      if (filters.active === 'inactive' && transaction.active) return false;
+    }
+    if (filters.frequency !== 'all' && transaction.frequency !== filters.frequency) return false;
+    if (filters.category !== 'all' && transaction.category !== filters.category) return false;
     return true;
   });
   
-  const handleSaveRecurring = () => {
-    if (!newRecurring.descricao || !newRecurring.valor || !newRecurring.categoria_id) {
+  const handleCreateRecurring = () => {
+    if (!newRecurring.description || !newRecurring.amount || !newRecurring.category || !newRecurring.paymentTo || !newRecurring.proxima_data) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios.",
@@ -210,127 +191,59 @@ const LancamentosRecorrentes = () => {
       });
       return;
     }
-
-    // Validate amount
-    const amount = parseFloat(newRecurring.valor.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: "Valor inválido",
-        description: "Por favor, informe um valor válido.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate day of month
-    if (newRecurring.dia_mes < 1 || newRecurring.dia_mes > 31) {
-      toast({
-        title: "Dia inválido",
-        description: "O dia do mês deve estar entre 1 e 31.",
-        variant: "destructive",
-      });
-      return;
-    }
     
-    const recurringToSave = {
-      ...(editingRecurring ? { id: editingRecurring.id } : {}),
-      descricao: newRecurring.descricao,
-      valor: amount,
-      tipo: newRecurring.tipo,
-      categoria_id: newRecurring.categoria_id,
-      centro_custo_id: newRecurring.centro_custo_id,
-      frequencia: newRecurring.frequencia,
-      dia_mes: newRecurring.dia_mes,
+    const newId = (Math.max(...recurringTransactions.map(t => Number(t.id))) + 1).toString();
+    
+    const createdTransaction = {
+      id: newId,
+      description: newRecurring.description,
+      paymentTo: newRecurring.paymentTo,
+      category: newRecurring.category,
+      amount: parseFloat(newRecurring.amount),
+      type: newRecurring.type,
+      dayOfMonth: parseInt(newRecurring.dayOfMonth),
+      frequency: newRecurring.frequency,
+      active: newRecurring.active,
+      proxima_data: newRecurring.proxima_data
     };
     
-    saveRecurringMutation.mutate(recurringToSave);
-  };
-  
-  const handleEditRecurring = (recurring: RecurringTransaction) => {
-    setEditingRecurring(recurring);
-    setNewRecurring({
-      descricao: recurring.descricao,
-      valor: recurring.valor.toString(),
-      tipo: recurring.tipo,
-      categoria_id: recurring.categoria_id,
-      centro_custo_id: recurring.centro_custo_id,
-      frequencia: recurring.frequencia,
-      dia_mes: recurring.dia_mes,
-    });
-    setDialogOpen(true);
-  };
-
-  const handleExportRecurring = () => {
-    // Transform recurring transactions for export
-    const dataToExport = filteredRecurring.map(item => ({
-      Descrição: item.descricao,
-      Valor: item.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-      Tipo: item.tipo,
-      Categoria: item.categoria_nome,
-      'Centro de Custo': item.centro_custo_nome,
-      Frequência: item.frequencia,
-      'Dia do Mês': item.dia_mes,
-    }));
-    
-    exportToExcel(dataToExport, 'lancamentos_recorrentes');
+    setRecurringTransactions(prev => [createdTransaction, ...prev]);
     
     toast({
-      title: "Exportação concluída",
-      description: "Os lançamentos recorrentes foram exportados com sucesso.",
+      title: "Lançamento recorrente criado",
+      description: "O lançamento recorrente foi criado com sucesso.",
     });
+    
+    setNewRecurring({
+      description: '',
+      amount: '',
+      dayOfMonth: '1',
+      type: 'expense',
+      category: '',
+      paymentTo: '',
+      frequency: 'monthly',
+      active: true,
+      proxima_data: null
+    });
+    
+    setDialogOpen(false);
   };
-
-  // Render loading skeleton
-  const renderLoadingSkeleton = () => (
-    <>
-      {[1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
-          <div className="col-span-3">
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-8 w-16 rounded-md" />
-          </div>
-        </div>
-      ))}
-    </>
-  );
-
-  // Render error state
-  const renderErrorState = () => (
-    <div className="p-8 text-center">
-      <X className="mx-auto h-12 w-12 text-red-500" />
-      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar lançamentos recorrentes</h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Não foi possível carregar a lista de lançamentos recorrentes. Tente novamente mais tarde.
-      </p>
-      <div className="mt-6">
-        <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['recurring'] })}
-          className="bg-purple hover:bg-purple/90"
-        >
-          Tentar novamente
-        </Button>
-      </div>
-    </div>
-  );
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+  
+  const toggleTransactionActive = (id: string) => {
+    setRecurringTransactions(prev => 
+      prev.map(transaction => 
+        transaction.id === id 
+          ? { ...transaction, active: !transaction.active } 
+          : transaction
+      )
+    );
+  };
+  
+  const deleteTransaction = (id: string) => {
+    setRecurringTransactions(prev => prev.filter(transaction => transaction.id !== id));
+    toast({
+      title: "Lançamento excluído",
+      description: "O lançamento recorrente foi excluído com sucesso.",
     });
   };
 
@@ -338,134 +251,410 @@ const LancamentosRecorrentes = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Lançamentos Recorrentes</h1>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleExportRecurring}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
-          </Button>
-          
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-purple hover:bg-purple/90">
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Lançamento Recorrente
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>{editingRecurring ? 'Editar Lançamento Recorrente' : 'Novo Lançamento Recorrente'}</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Descrição</Label>
-                  <Input
-                    id="description"
-                    value={newRecurring.descricao}
-                    onChange={(e) => setNewRecurring({ ...newRecurring, descricao: e.target.value })}
-                    placeholder="Ex: Assinatura Serviço"
-                  />
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-purple hover:bg-purple/90">
+              <Plus size={18} className="mr-2" />
+              Novo Lançamento
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle className="text-purple-dark">Novo Lançamento Recorrente</DialogTitle>
+              <DialogDescription>
+                Configure um lançamento automático mensal ou anual.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="transaction-type">Tipo</Label>
+                  <Select 
+                    value={newRecurring.type}
+                    onValueChange={(value) => setNewRecurring({...newRecurring, type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="expense">Despesa</SelectItem>
+                      <SelectItem value="income">Receita</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="grid gap-2">
+                
+                <div className="space-y-2">
                   <Label htmlFor="amount">Valor</Label>
-                  <Input
-                    id="amount"
-                    value={newRecurring.valor}
-                    onChange={(e) => setNewRecurring({ ...newRecurring, valor: e.target.value })}
-                    placeholder="Ex: 1500,00"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select
-                    value={newRecurring.tipo}
-                    onValueChange={(value) => setNewRecurring({ ...newRecurring, tipo: value as 'Despesa' | 'Receita' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Despesa">Despesa</SelectItem>
-                      <SelectItem value="Receita">Receita</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="category">Categoria</Label>
-                  <Select
-                    value={newRecurring.categoria_id}
-                    onValueChange={(value) => setNewRecurring({ ...newRecurring, categoria_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="costCenter">Centro de Custo</Label>
-                  <Select
-                    value={newRecurring.centro_custo_id}
-                    onValueChange={(value) => setNewRecurring({ ...newRecurring, centro_custo_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o centro de custo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {costCenters.map((costCenter) => (
-                        <SelectItem key={costCenter.id} value={costCenter.id}>
-                          {costCenter.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="frequency">Frequência</Label>
-                  <Select
-                    value={newRecurring.frequencia}
-                    onValueChange={(value) => setNewRecurring({ ...newRecurring, frequencia: value as 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a frequência" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Mensal">Mensal</SelectItem>
-                      <SelectItem value="Trimestral">Trimestral</SelectItem>
-                      <SelectItem value="Semestral">Semestral</SelectItem>
-                      <SelectItem value="Anual">Anual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="dayOfMonth">Dia do mês</Label>
-                  <Input
-                    id="dayOfMonth"
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={newRecurring.dia_mes}
-                    onChange={(e) => setNewRecurring({ ...newRecurring, dia_mes: parseInt(e.target.value) || 1 })}
+                  <Input 
+                    id="amount" 
+                    placeholder="0,00"
+                    value={newRecurring.amount}
+                    onChange={(e) => setNewRecurring({...newRecurring, amount: e.target.value})}
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => {
-                  setDialogOpen(false);
-                  resetRecurringForm();
-                }}>
-                  Cancelar
-                </Button>
-                <Button 
-                  className="bg-purple hover:bg-purple/90" 
-                  onClick={handleSaveRecurring}
-                  disabled={saveRecurringMutation.isP
-(Content truncated due to size limit. Use line ranges to read in chunks)
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Input 
+                  id="description" 
+                  placeholder="Descrição do lançamento"
+                  value={newRecurring.description}
+                  onChange={(e) => setNewRecurring({...newRecurring, description: e.target.value})}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select 
+                    value={newRecurring.category}
+                    onValueChange={(value) => setNewRecurring({...newRecurring, category: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="payment-to">Contato</Label>
+                  <Select 
+                    value={newRecurring.paymentTo}
+                    onValueChange={(value) => setNewRecurring({...newRecurring, paymentTo: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTACTS.map((contact) => (
+                        <SelectItem key={contact} value={contact}>{contact}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="day-of-month">Dia do mês</Label>
+                  <Select 
+                    value={newRecurring.dayOfMonth}
+                    onValueChange={(value) => setNewRecurring({...newRecurring, dayOfMonth: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="frequency">Frequência</Label>
+                  <Select 
+                    value={newRecurring.frequency}
+                    onValueChange={(value) => setNewRecurring({...newRecurring, frequency: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+			  {/* CAMPO NOVO: Próxima Data */}
+              <div className="space-y-2">
+                <Label htmlFor="proxima-data">Próxima Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      {newRecurring.proxima_data
+                        ? format(newRecurring.proxima_data, 'dd/MM/yyyy')
+                        : 'Selecione a data'}
+                      <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={newRecurring.proxima_data}
+                      onSelect={(date) =>
+                        setNewRecurring((prev) => ({
+                          ...prev,
+                          proxima_data: date,
+                        }))
+                      }
+                      locale={ptBR}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+			  
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="active" 
+                  checked={newRecurring.active}
+                  onCheckedChange={(checked) => 
+                    setNewRecurring({...newRecurring, active: checked as boolean})
+                  }
+                />
+                <Label htmlFor="active">Ativo</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button className="bg-purple hover:bg-purple/90" onClick={handleCreateRecurring}>
+                Criar Lançamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <Button 
+          variant="outline" 
+          className="flex items-center gap-2"
+          onClick={() => setFilterOpen(!filterOpen)}
+        >
+          <Filter size={16} />
+          Filtrar
+          <ChevronDown size={16} className={filterOpen ? "rotate-180 transform" : ""} />
+        </Button>
+        
+        {filters.type !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.type === 'income' ? 'Receitas' : 'Despesas'}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('type', 'all')} />
+          </div>
+        )}
+        
+        {filters.active !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.active === 'active' ? 'Ativos' : 'Inativos'}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('active', 'all')} />
+          </div>
+        )}
+        
+        {filters.frequency !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.frequency === 'monthly' ? 'Mensal' : 'Anual'}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('frequency', 'all')} />
+          </div>
+        )}
+        
+        {filters.category !== 'all' && (
+          <div className="filter-chip filter-chip-active flex items-center gap-1">
+            <span>{filters.category}</span>
+            <X size={14} className="cursor-pointer" onClick={() => handleFilterChange('category', 'all')} />
+          </div>
+        )}
+        
+        {(filters.type !== 'all' || filters.active !== 'all' || filters.frequency !== 'all' || filters.category !== 'all') && (
+          <Button 
+            variant="ghost" 
+            className="text-sm text-muted-foreground"
+            onClick={resetFilters}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+      
+      {filterOpen && (
+        <Card className="mb-4">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="filter-type">Tipo</Label>
+                <Select 
+                  value={filters.type}
+                  onValueChange={(value) => handleFilterChange('type', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="income">Receitas</SelectItem>
+                    <SelectItem value="expense">Despesas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="filter-active">Status</Label>
+                <Select 
+                  value={filters.active}
+                  onValueChange={(value) => handleFilterChange('active', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativos</SelectItem>
+                    <SelectItem value="inactive">Inativos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="filter-frequency">Frequência</Label>
+                <Select 
+                  value={filters.frequency}
+                  onValueChange={(value) => handleFilterChange('frequency', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="filter-category">Categoria</Label>
+                <Select 
+                  value={filters.category}
+                  onValueChange={(value) => handleFilterChange('category', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {CATEGORIES.map((category) => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recurring transactions table */}
+      <div className="bg-white rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
+          <div className="col-span-3">Descrição</div>
+          <div className="col-span-2">Contato</div>
+          <div className="col-span-2">Categoria</div>
+          <div className="col-span-1 text-center">Dia</div>
+          <div className="col-span-1">Frequência</div>
+          <div className="col-span-1 text-right">Valor</div>
+          <div className="col-span-1 text-center">Status</div>
+		  <div className="col-span-1">Próxima Data</div> {/* NOVA COLUNA */}
+          <div className="col-span-1"></div>
+        </div>
+
+        {filteredTransactions.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Nenhum lançamento recorrente encontrado.
+          </div>
+        ) : (
+          filteredTransactions.map((transaction) => (
+            <div 
+              key={transaction.id} 
+              className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
+            >
+              <div className="col-span-3 font-medium">
+                {transaction.description}
+              </div>
+              <div className="col-span-2 text-muted-foreground">
+                {transaction.paymentTo}
+              </div>
+              <div className="col-span-2">
+                <span className="px-2 py-1 rounded-full text-xs bg-gray-100">
+                  {transaction.category}
+                </span>
+              </div>
+              <div className="col-span-1 text-center flex items-center justify-center">
+                <div className="bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-sm">
+                  {transaction.dayOfMonth}
+                </div>
+              </div>
+              <div className="col-span-1">
+                {transaction.frequency === 'monthly' ? 'Mensal' : 'Anual'}
+              </div>
+              <div 
+                className={`col-span-1 font-medium text-right ${
+                  transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {formatCurrency(transaction.amount)}
+              </div>
+              <div className="col-span-1 flex justify-center">
+                <button 
+                  className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                    transaction.active 
+                      ? 'bg-purple border-purple text-white' 
+                      : 'border-gray-300'
+                  }`}
+                  onClick={() => toggleTransactionActive(transaction.id)}
+                >
+                  {transaction.active && <Check size={12} />}
+                </button>
+              </div>
+			  <div className="col-span-1 flex justify-center">
+                {/* Mostra a próxima data formatada */}
+                {transaction.proxima_data
+                  ? format(new Date(transaction.proxima_data), 'dd/MM/yyyy')
+                  : '-'}
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreHorizontal size={16} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => toggleTransactionActive(transaction.id)}
+                      className="cursor-pointer"
+                    >
+                      {transaction.active ? 'Desativar' : 'Ativar'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => deleteTransaction(transaction.id)}
+                      className="text-red-600 focus:text-red-600 cursor-pointer"
+                    >
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Recorrentes;
