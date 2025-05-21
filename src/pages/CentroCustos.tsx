@@ -181,7 +181,7 @@ const CentroCustos = () => {
     const costCenterToSave = {
       ...(editingCostCenter ? { id: editingCostCenter.id } : {}),
       nome: newCostCenter.nome,
-      descricao: newCostCenter.descricao,
+      descricao: newCostCenter.descricao || '',
     };
     
     saveCostCenterMutation.mutate(costCenterToSave);
@@ -191,7 +191,7 @@ const CentroCustos = () => {
     setEditingCostCenter(costCenter);
     setNewCostCenter({
       nome: costCenter.nome,
-      descricao: costCenter.descricao,
+      descricao: costCenter.descricao || '',
     });
     setDialogOpen(true);
   };
@@ -355,7 +355,7 @@ const CentroCustos = () => {
                     {costCenter.nome}
                   </div>
                   <div className="col-span-6 text-muted-foreground break-words">
-                    {costCenter.descricao || <span className="italic text-muted-foreground/60">Sem descrição</span>}
+                    {costCenter.descricao ? costCenter.descricao : <span className="italic text-muted-foreground/60">Sem descrição</span>}
                   </div>
                   <div className="col-span-2 flex justify-end">
                     <DropdownMenu>

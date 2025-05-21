@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
@@ -70,10 +70,12 @@ interface Transaction {
   recurrence: 'none' | 'monthly' | 'yearly';
   detalhes?: string;
   status?: string;
+  categoria_id: string;
 }
 
 // Define new transaction form
 interface TransactionForm {
+  id?: string;
   descricao: string;
   valor: string;
   data: Date;
@@ -113,12 +115,13 @@ const Transacoes = () => {
 
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch transactions
-  const { data: transactionsData = [], isLoading } = useQuery({
+  const { data: transactionsData = [], isLoading, refetch } = useQuery({
     queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       const response = await transactionsAPI.list();
@@ -211,6 +214,7 @@ const Transacoes = () => {
       recurrence: 'none',
       detalhes: ''
     });
+    setIsEditing(false);
   };
 
   const filteredTransactions = transactions.filter(transaction => {
@@ -235,28 +239,28 @@ const Transacoes = () => {
     return true;
   });
 
-  // Create transaction mutation
-  const createTransactionMutation = useMutation({
+  // Create/update transaction mutation
+  const saveTransactionMutation = useMutation({
     mutationFn: (transaction: any) => transactionsAPI.save(transaction),
     onSuccess: (data) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         toast({
-          title: "Transação criada com sucesso",
+          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
         });
         setDialogOpen(false);
         resetTransactionForm();
       } else {
         toast({
-          title: "Erro ao criar transação",
-          description: data.message || "Ocorreu um erro ao criar a transação",
+          title: "Erro ao salvar transação",
+          description: data.message || "Ocorreu um erro ao salvar a transação",
           variant: "destructive",
         });
       }
     },
     onError: (error) => {
       toast({
-        title: "Erro ao criar transação",
+        title: "Erro ao salvar transação",
         description: String(error),
         variant: "destructive",
       });
@@ -315,7 +319,7 @@ const Transacoes = () => {
     }
   });
 
-  const handleCreateTransaction = () => {
+  const handleSaveTransaction = () => {
     if (!newTransaction.descricao || !newTransaction.valor || !newTransaction.categoria_id) {
       toast({
         title: "Campos obrigatórios",
@@ -338,7 +342,8 @@ const Transacoes = () => {
 
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
 
-    const createdTransaction = {
+    const transactionToSave = {
+      ...(isEditing && newTransaction.id ? { id: newTransaction.id } : {}),
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
@@ -350,7 +355,7 @@ const Transacoes = () => {
       detalhes: newTransaction.detalhes
     };
 
-    createTransactionMutation.mutate(createdTransaction);
+    saveTransactionMutation.mutate(transactionToSave);
   };
 
   const toggleTransactionPaid = (transaction: Transaction) => {
@@ -363,11 +368,30 @@ const Transacoes = () => {
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
-    // Placeholder for edit functionality
-    toast({
-      title: "Editar transação",
-      description: "Funcionalidade a ser implementada",
+    setIsEditing(true);
+    
+    // Parse the transaction date
+    let transactionDate;
+    try {
+      transactionDate = new Date(transaction.data);
+    } catch (e) {
+      transactionDate = new Date();
+    }
+    
+    setNewTransaction({
+      id: transaction.id,
+      descricao: transaction.descricao,
+      valor: transaction.valor.toString(),
+      data: transactionDate,
+      tipo: transaction.tipo,
+      categoria_id: transaction.categoria_id,
+      paymentTo: transaction.paymentTo,
+      paid: transaction.paid,
+      recurrence: transaction.recurrence,
+      detalhes: transaction.detalhes || ''
     });
+    
+    setDialogOpen(true);
   };
 
   const toggleExpandTransaction = (id: string) => {
@@ -385,6 +409,57 @@ const Transacoes = () => {
     return null;
   };
 
+  // Effect to handle filtering based on quick filters
+  useEffect(() => {
+    refetch();
+  }, [filters, refetch]);
+
+  // Generates the table headers based on the transaction type filter
+  const renderTableHeaders = () => {
+    // Default headers for all transaction types
+    if (filters.tipo === 'all') {
+      return (
+        <>
+          <div className="col-span-1">Data</div>
+          <div className="col-span-3">Descrição</div>
+          <div className="col-span-2">{filters.tipo === 'Receita' ? 'Recebido de' : 'Pago a'}</div>
+          <div className="col-span-2">Categoria</div>
+          <div className="col-span-2 text-right">Valor</div>
+          <div className="col-span-1 text-center">Status</div>
+          <div className="col-span-1"></div>
+        </>
+      );
+    }
+    
+    // Headers for Receita transactions
+    if (filters.tipo === 'Receita') {
+      return (
+        <>
+          <div className="col-span-1">Data</div>
+          <div className="col-span-3">Descrição</div>
+          <div className="col-span-2">Recebido de</div>
+          <div className="col-span-2">Tipo pagamento</div>
+          <div className="col-span-2 text-right">Valor</div>
+          <div className="col-span-1 text-center">Status</div>
+          <div className="col-span-1"></div>
+        </>
+      );
+    }
+    
+    // Headers for Despesa transactions
+    return (
+      <>
+        <div className="col-span-1">Data</div>
+        <div className="col-span-3">Descrição</div>
+        <div className="col-span-2">Pago a</div>
+        <div className="col-span-2">Categoria</div>
+        <div className="col-span-2 text-right">Valor</div>
+        <div className="col-span-1 text-center">Status</div>
+        <div className="col-span-1"></div>
+      </>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -398,7 +473,9 @@ const Transacoes = () => {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[525px]">
             <DialogHeader>
-              <DialogTitle className="text-purple-dark">Nova Transação</DialogTitle>
+              <DialogTitle className="text-purple-dark">
+                {isEditing ? 'Editar Transação' : 'Nova Transação'}
+              </DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -521,7 +598,7 @@ const Transacoes = () => {
                   id="paid"
                   checked={newTransaction.paid}
                   onCheckedChange={(checked) =>
-                    setNewTransaction({ ...newTransaction, paid: checked as boolean })
+                    setNewTransaction({ ...newTransaction, paid: checked })
                   }
                 />
                 <Label htmlFor="paid">
@@ -530,16 +607,17 @@ const Transacoes = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button className="bg-purple hover:bg-purple/90" onClick={handleCreateTransaction}>
-                {createTransactionMutation.isPending ? (
+              <Button variant="outline" onClick={() => {
+                setDialogOpen(false);
+                resetTransactionForm();
+              }}>Cancelar</Button>
+              <Button className="bg-purple hover:bg-purple/90" onClick={handleSaveTransaction}>
+                {saveTransactionMutation.isPending ? (
                   <>
                     <Loader className="mr-2 h-4 w-4 animate-spin" />
                     Processando
                   </>
-                ) : (
-                  'Criar Transação'
-                )}
+                ) : isEditing ? 'Atualizar Transação' : 'Criar Transação'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -561,15 +639,27 @@ const Transacoes = () => {
 
       {/* Quick filter buttons */}
       <div className="flex flex-wrap gap-2">
-        <ToggleGroup type="single" value={activeFilter || undefined} onValueChange={(value) => value && applyQuickFilter(value)}>
-          <ToggleGroupItem value="receitas" className="rounded-full">
-            <Badge className="bg-green-500 hover:bg-green-600">Recebimentos</Badge>
+        <ToggleGroup type="single" value={activeFilter || undefined}>
+          <ToggleGroupItem 
+            value="receitas" 
+            className="rounded-full"
+            onClick={() => applyQuickFilter('receitas')}
+          >
+            <Badge className={`${activeFilter === 'receitas' ? 'bg-green-600' : 'bg-green-500 hover:bg-green-600'}`}>Recebimentos</Badge>
           </ToggleGroupItem>
-          <ToggleGroupItem value="despesas-fixas" className="rounded-full">
-            <Badge className="bg-blue-500 hover:bg-blue-600">Despesas Fixas</Badge>
+          <ToggleGroupItem 
+            value="despesas-fixas" 
+            className="rounded-full"
+            onClick={() => applyQuickFilter('despesas-fixas')}
+          >
+            <Badge className={`${activeFilter === 'despesas-fixas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas Fixas</Badge>
           </ToggleGroupItem>
-          <ToggleGroupItem value="impostos" className="rounded-full">
-            <Badge className="bg-red-500 hover:bg-red-600">Impostos</Badge>
+          <ToggleGroupItem 
+            value="impostos" 
+            className="rounded-full"
+            onClick={() => applyQuickFilter('impostos')}
+          >
+            <Badge className={`${activeFilter === 'impostos' ? 'bg-red-600' : 'bg-red-500 hover:bg-red-600'}`}>Impostos</Badge>
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -670,13 +760,7 @@ const Transacoes = () => {
       
       <div className="bg-white rounded-lg border border-border overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">Pago a</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
+          {renderTableHeaders()}
         </div>
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground">
