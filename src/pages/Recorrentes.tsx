@@ -1,57 +1,28 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Card, 
-  CardContent, 
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter
-} from '@/components/ui/card';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter, 
-  DialogTrigger 
-} from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
-
-const recurringAPI = {
-  list: async () => {
-    const res = await fetch(`${API_BASE_URL}/listar-recorrentes.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return await res.json();
-  },
-  save: async (recorrente: any) => {
-    const res = await fetch(`${API_BASE_URL}/salvar-recorrente.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recorrente),
-    });
-    return await res.json();
-  }
-  // Adicione métodos de delete/update se existirem em seu backend!
-};
-import { 
+  ChevronLeft, 
+  ChevronRight, 
   Plus, 
-  Loader2, 
-  MoreHorizontal, 
-  Calendar,
-  Pencil,
+  Filter,
+  ChevronDown,
+  Check,
   X,
-  ArrowDown,
-  ArrowUp,
-  Check
+  Download,
+  Upload
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -60,204 +31,302 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, addMonths, parse } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Checkbox } from '@/components/ui/checkbox';
+import { recurringAPI, categoriesAPI, costCentersAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { exportToExcel } from '@/utils/fileUtils';
 
+// Define recurring transaction type
 interface RecurringTransaction {
   id: string;
-  description: string;
-  amount: number;
-  type: 'income' | 'expense';
-  frequency: 'monthly' | 'weekly' | 'yearly';
-  day?: number;
-  dayOfWeek?: number;
-  month?: number;
-  nextDate?: string;
-  category?: string;
+  descricao: string;
+  valor: number;
+  tipo: 'Despesa' | 'Receita';
+  categoria_id: string;
+  categoria_nome: string;
+  centro_custo_id: string;
+  centro_custo_nome: string;
+  frequencia: 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
+  dia_mes: number;
 }
 
-const Recorrentes = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [recurringToEdit, setRecurringToEdit] = useState<RecurringTransaction | null>(null);
-  const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
-  const [recurringToDelete, setRecurringToDelete] = useState<string | null>(null);
-  const [filter, setFilter] = useState('all');
+// Define new recurring transaction form
+interface RecurringTransactionForm {
+  descricao: string;
+  valor: string;
+  tipo: 'Despesa' | 'Receita';
+  categoria_id: string;
+  centro_custo_id: string;
+  frequencia: 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
+  dia_mes: number;
+}
+
+const LancamentosRecorrentes = () => {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    tipo: 'all',
+    categoria: 'all',
+    frequencia: 'all',
+  });
+  
+  const [newRecurring, setNewRecurring] = useState<RecurringTransactionForm>({
+    descricao: '',
+    valor: '',
+    tipo: 'Despesa',
+    categoria_id: '',
+    centro_custo_id: '',
+    frequencia: 'Mensal',
+    dia_mes: 1,
+  });
+  
+  const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
   const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const [formData, setFormData] = useState<Partial<RecurringTransaction>>({
-    description: '',
-    amount: 0,
-    type: 'expense',
-    frequency: 'monthly',
-    day: 1
-  });
-
   // Fetch recurring transactions
-  const { data: recurrings, isLoading, isError } = useQuery({
-    queryKey: ['recurrings'],
+  const { data: recurringData, isLoading, isError } = useQuery({
+    queryKey: ['recurring'],
     queryFn: async () => {
       try {
         const response = await recurringAPI.list();
-        return response.success ? response.recurrings : [];
-      } catch (error) {
-        console.error('Error fetching recurring transactions:', error);
-        toast({
-          title: "Erro ao carregar lançamentos recorrentes",
-          description: "Não foi possível carregar a lista de lançamentos recorrentes",
-          variant: "destructive",
-        });
-        return [];
+        return response.status === 'success' ? response.recorrentes : [];
+      } catch (err) {
+        console.error('Error fetching recurring transactions:', err);
+        throw err;
       }
     }
   });
 
-  // Create recurring transaction mutation
-  const createRecurringMutation = useMutation({
-    mutationFn: (recurring: Partial<RecurringTransaction>) => recurringAPI.save(recurring),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-      toast({
-        title: "Lançamento recorrente criado com sucesso",
-      });
-      setIsDialogOpen(false);
-      resetForm();
+  // Fetch categories for dropdown
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      try {
+        const response = await categoriesAPI.list();
+        return response.status === 'success' ? response.categorias : [];
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        return [];
+      }
+    },
+    initialData: []
+  });
+
+  // Fetch cost centers for dropdown
+  const { data: costCentersData } = useQuery({
+    queryKey: ['costCenters'],
+    queryFn: async () => {
+      try {
+        const response = await costCentersAPI.list();
+        return response.status === 'success' ? response.centros_custo : [];
+      } catch (error) {
+        console.error('Error fetching cost centers:', error);
+        return [];
+      }
+    },
+    initialData: []
+  });
+
+  // Create/update recurring transaction mutation
+  const saveRecurringMutation = useMutation({
+    mutationFn: (recurring: any) => recurringAPI.save(recurring),
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['recurring'] });
+        toast({
+          title: editingRecurring ? "Lançamento recorrente atualizado com sucesso" : "Lançamento recorrente criado com sucesso",
+        });
+        setDialogOpen(false);
+        resetRecurringForm();
+      } else {
+        toast({
+          title: "Erro ao salvar lançamento recorrente",
+          description: data.message || "Ocorreu um erro ao salvar o lançamento recorrente",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       toast({
-        title: "Erro ao criar lançamento recorrente",
+        title: "Erro ao salvar lançamento recorrente",
         description: String(error),
         variant: "destructive",
       });
     }
   });
 
-  // Update recurring transaction mutation
-  const updateRecurringMutation = useMutation({
-    mutationFn: (recurring: RecurringTransaction) => recurringAPI.save(recurring),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-      toast({
-        title: "Lançamento recorrente atualizado com sucesso",
-      });
-      setRecurringToEdit(null);
-      setIsDialogOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao atualizar lançamento recorrente",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
+  const recurring = recurringData || [];
+  const categories = categoriesData || [];
+  const costCenters = costCentersData || [];
 
-  // Delete recurring transaction mutation
-  const deleteRecurringMutation = useMutation({
-    mutationFn: (id: string) => recurringAPI.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-      toast({
-        title: "Lançamento recorrente excluído com sucesso",
-      });
-      setIsAlertDialogOpen(false);
-      setRecurringToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao excluir lançamento recorrente",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  const resetForm = () => {
-    setFormData({
-      description: '',
-      amount: 0,
-      type: 'expense',
-      frequency: 'monthly',
-      day: 1
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+  
+  const resetFilters = () => {
+    setFilters({
+      tipo: 'all',
+      categoria: 'all',
+      frequencia: 'all',
     });
   };
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'amount' ? parseFloat(value) : value }));
+
+  const resetRecurringForm = () => {
+    setNewRecurring({
+      descricao: '',
+      valor: '',
+      tipo: 'Despesa',
+      categoria_id: '',
+      centro_custo_id: '',
+      frequencia: 'Mensal',
+      dia_mes: 1,
+    });
+    setEditingRecurring(null);
   };
+
+  const filteredRecurring = recurring.filter(item => {
+    // Apply filters
+    if (filters.tipo !== 'all' && item.tipo !== filters.tipo) return false;
+    if (filters.categoria !== 'all' && item.categoria_id !== filters.categoria) return false;
+    if (filters.frequencia !== 'all' && item.frequencia !== filters.frequencia) return false;
+    return true;
+  });
   
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleSubmit = () => {
-    if (!formData.description) {
+  const handleSaveRecurring = () => {
+    if (!newRecurring.descricao || !newRecurring.valor || !newRecurring.categoria_id) {
       toast({
-        title: "Descrição obrigatória",
-        description: "Por favor, informe uma descrição",
+        title: "Campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios.",
         variant: "destructive",
       });
       return;
     }
-    
-    if (!formData.amount || formData.amount <= 0) {
+
+    // Validate amount
+    const amount = parseFloat(newRecurring.valor.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
       toast({
         title: "Valor inválido",
-        description: "Por favor, informe um valor maior que zero",
+        description: "Por favor, informe um valor válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate day of month
+    if (newRecurring.dia_mes < 1 || newRecurring.dia_mes > 31) {
+      toast({
+        title: "Dia inválido",
+        description: "O dia do mês deve estar entre 1 e 31.",
         variant: "destructive",
       });
       return;
     }
     
-    if (recurringToEdit) {
-      updateRecurringMutation.mutate({
-        ...recurringToEdit,
-        ...formData
-      } as RecurringTransaction);
-    } else {
-      createRecurringMutation.mutate(formData);
-    }
+    const recurringToSave = {
+      ...(editingRecurring ? { id: editingRecurring.id } : {}),
+      descricao: newRecurring.descricao,
+      valor: amount,
+      tipo: newRecurring.tipo,
+      categoria_id: newRecurring.categoria_id,
+      centro_custo_id: newRecurring.centro_custo_id,
+      frequencia: newRecurring.frequencia,
+      dia_mes: newRecurring.dia_mes,
+    };
+    
+    saveRecurringMutation.mutate(recurringToSave);
   };
   
-  const openEditDialog = (recurring: RecurringTransaction) => {
-    setRecurringToEdit(recurring);
-    setFormData({
-      description: recurring.description,
-      amount: recurring.amount,
-      type: recurring.type,
-      frequency: recurring.frequency,
-      day: recurring.day,
-      dayOfWeek: recurring.dayOfWeek,
-      month: recurring.month,
-      category: recurring.category
+  const handleEditRecurring = (recurring: RecurringTransaction) => {
+    setEditingRecurring(recurring);
+    setNewRecurring({
+      descricao: recurring.descricao,
+      valor: recurring.valor.toString(),
+      tipo: recurring.tipo,
+      categoria_id: recurring.categoria_id,
+      centro_custo_id: recurring.centro_custo_id,
+      frequencia: recurring.frequencia,
+      dia_mes: recurring.dia_mes,
     });
-    setIsDialogOpen(true);
+    setDialogOpen(true);
   };
-  
-  const confirmDelete = (id: string) => {
-    setRecurringToDelete(id);
-    setIsAlertDialogOpen(true);
+
+  const handleExportRecurring = () => {
+    // Transform recurring transactions for export
+    const dataToExport = filteredRecurring.map(item => ({
+      Descrição: item.descricao,
+      Valor: item.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      Tipo: item.tipo,
+      Categoria: item.categoria_nome,
+      'Centro de Custo': item.centro_custo_nome,
+      Frequência: item.frequencia,
+      'Dia do Mês': item.dia_mes,
+    }));
+    
+    exportToExcel(dataToExport, 'lancamentos_recorrentes');
+    
+    toast({
+      title: "Exportação concluída",
+      description: "Os lançamentos recorrentes foram exportados com sucesso.",
+    });
   };
-  
-  const deleteRecurring = () => {
-    if (!recurringToDelete) return;
-    deleteRecurringMutation.mutate(recurringToDelete);
-  };
-  
+
+  // Render loading skeleton
+  const renderLoadingSkeleton = () => (
+    <>
+      {[1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+          <div className="col-span-3">
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="col-span-1">
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-8 w-16 rounded-md" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+
+  // Render error state
+  const renderErrorState = () => (
+    <div className="p-8 text-center">
+      <X className="mx-auto h-12 w-12 text-red-500" />
+      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar lançamentos recorrentes</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        Não foi possível carregar a lista de lançamentos recorrentes. Tente novamente mais tarde.
+      </p>
+      <div className="mt-6">
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['recurring'] })}
+          className="bg-purple hover:bg-purple/90"
+        >
+          Tentar novamente
+        </Button>
+      </div>
+    </div>
+  );
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', {
       style: 'currency',
@@ -265,402 +334,138 @@ const Recorrentes = () => {
     });
   };
 
-  const getFrequencyLabel = (frequency: string) => {
-    switch (frequency) {
-      case 'monthly': return 'Mensal';
-      case 'weekly': return 'Semanal';
-      case 'yearly': return 'Anual';
-      default: return frequency;
-    }
-  };
-
-  const getNextDateText = (recurring: RecurringTransaction) => {
-    if (recurring.nextDate) {
-      const date = new Date(recurring.nextDate);
-      return date.toLocaleDateString('pt-BR');
-    }
-    
-    let text = '';
-    
-    switch (recurring.frequency) {
-      case 'monthly':
-        text = `Todo dia ${recurring.day} do mês`;
-        break;
-      case 'weekly':
-        const daysOfWeek = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-        text = `Toda ${daysOfWeek[recurring.dayOfWeek || 0]}`;
-        break;
-      case 'yearly':
-        const months = [
-          'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-          'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
-        ];
-        text = `Todo dia ${recurring.day} de ${months[recurring.month || 0]}`;
-        break;
-      default:
-        text = 'Data indefinida';
-    }
-    
-    return text;
-  };
-
-  const filteredRecurrings = (recurrings || []).filter(recurring => {
-    if (filter === 'all') return true;
-    return recurring.type === filter;
-  });
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold text-purple-dark">Lançamentos Recorrentes</h1>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-purple" />
-          <span className="ml-2">Carregando lançamentos recorrentes...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (isError) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold text-purple-dark">Lançamentos Recorrentes</h1>
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
-          <p className="text-center">Erro ao carregar lançamentos recorrentes. Por favor, tente novamente.</p>
-          <div className="flex justify-center mt-4">
-            <Button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['recurrings'] })}
-              className="bg-purple hover:bg-purple/90"
-            >
-              Tentar novamente
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Lançamentos Recorrentes</h1>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setRecurringToEdit(null);
-            resetForm();
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-purple hover:bg-purple/90">
-              <Plus size={18} className="mr-2" />
-              Novo Lançamento Recorrente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-purple-dark">
-                {recurringToEdit ? 'Editar' : 'Novo'} Lançamento Recorrente
-              </DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Input 
-                  id="description"
-                  name="description"
-                  value={formData.description || ''}
-                  onChange={handleInputChange}
-                  placeholder="Ex: Aluguel, Internet, etc."
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Valor</Label>
-                  <Input 
-                    id="amount"
-                    name="amount"
-                    type="number"
-                    value={formData.amount || ''}
-                    onChange={handleInputChange}
-                    min="0"
-                    step="0.01"
-                    placeholder="0,00"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select 
-                    value={formData.type}
-                    onValueChange={(value) => handleSelectChange('type', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="expense">Despesa</SelectItem>
-                      <SelectItem value="income">Receita</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="frequency">Frequência</Label>
-                <Select 
-                  value={formData.frequency}
-                  onValueChange={(value) => handleSelectChange('frequency', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Mensal</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                    <SelectItem value="yearly">Anual</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {formData.frequency === 'monthly' && (
-                <div className="space-y-2">
-                  <Label htmlFor="day">Dia do mês</Label>
-                  <Input 
-                    id="day"
-                    name="day"
-                    type="number"
-                    value={formData.day || ''}
-                    onChange={handleInputChange}
-                    min="1"
-                    max="31"
-                    placeholder="1"
-                  />
-                </div>
-              )}
-              
-              {formData.frequency === 'weekly' && (
-                <div className="space-y-2">
-                  <Label htmlFor="dayOfWeek">Dia da semana</Label>
-                  <Select 
-                    value={String(formData.dayOfWeek || 0)}
-                    onValueChange={(value) => handleSelectChange('dayOfWeek', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Domingo</SelectItem>
-                      <SelectItem value="1">Segunda-feira</SelectItem>
-                      <SelectItem value="2">Terça-feira</SelectItem>
-                      <SelectItem value="3">Quarta-feira</SelectItem>
-                      <SelectItem value="4">Quinta-feira</SelectItem>
-                      <SelectItem value="5">Sexta-feira</SelectItem>
-                      <SelectItem value="6">Sábado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              
-              {formData.frequency === 'yearly' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="day">Dia</Label>
-                    <Input 
-                      id="day"
-                      name="day"
-                      type="number"
-                      value={formData.day || ''}
-                      onChange={handleInputChange}
-                      min="1"
-                      max="31"
-                      placeholder="1"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="month">Mês</Label>
-                    <Select 
-                      value={String(formData.month || 0)}
-                      onValueChange={(value) => handleSelectChange('month', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Janeiro</SelectItem>
-                        <SelectItem value="1">Fevereiro</SelectItem>
-                        <SelectItem value="2">Março</SelectItem>
-                        <SelectItem value="3">Abril</SelectItem>
-                        <SelectItem value="4">Maio</SelectItem>
-                        <SelectItem value="5">Junho</SelectItem>
-                        <SelectItem value="6">Julho</SelectItem>
-                        <SelectItem value="7">Agosto</SelectItem>
-                        <SelectItem value="8">Setembro</SelectItem>
-                        <SelectItem value="9">Outubro</SelectItem>
-                        <SelectItem value="10">Novembro</SelectItem>
-                        <SelectItem value="11">Dezembro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoria</Label>
-                <Input 
-                  id="category"
-                  name="category"
-                  value={formData.category || ''}
-                  onChange={handleInputChange}
-                  placeholder="Ex: Moradia, Alimentação, etc."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-              <Button 
-                className="bg-purple hover:bg-purple/90" 
-                onClick={handleSubmit}
-                disabled={createRecurringMutation.isPending || updateRecurringMutation.isPending}
-              >
-                {createRecurringMutation.isPending || updateRecurringMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {recurringToEdit ? 'Salvando...' : 'Criando...'}
-                  </>
-                ) : (
-                  recurringToEdit ? 'Salvar Alterações' : 'Criar Lançamento'
-                )}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleExportRecurring}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+          
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-purple hover:bg-purple/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Lançamento Recorrente
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="flex space-x-2 mb-4">
-        <Button
-          variant={filter === 'all' ? "default" : "outline"}
-          className={filter === 'all' ? "bg-purple hover:bg-purple/90" : ""}
-          onClick={() => setFilter('all')}
-        >
-          Todos
-        </Button>
-        <Button
-          variant={filter === 'expense' ? "default" : "outline"}
-          className={filter === 'expense' ? "bg-purple hover:bg-purple/90" : ""}
-          onClick={() => setFilter('expense')}
-        >
-          Despesas
-        </Button>
-        <Button
-          variant={filter === 'income' ? "default" : "outline"}
-          className={filter === 'income' ? "bg-purple hover:bg-purple/90" : ""}
-          onClick={() => setFilter('income')}
-        >
-          Receitas
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredRecurrings.map((recurring) => (
-          <Card key={recurring.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  {recurring.type === 'income' ? (
-                    <ArrowUp className="h-5 w-5 mr-2 text-green-500" />
-                  ) : (
-                    <ArrowDown className="h-5 w-5 mr-2 text-red-500" />
-                  )}
-                  <CardTitle className="text-lg">{recurring.description}</CardTitle>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingRecurring ? 'Editar Lançamento Recorrente' : 'Novo Lançamento Recorrente'}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Descrição</Label>
+                  <Input
+                    id="description"
+                    value={newRecurring.descricao}
+                    onChange={(e) => setNewRecurring({ ...newRecurring, descricao: e.target.value })}
+                    placeholder="Ex: Assinatura Serviço"
+                  />
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal size={16} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => openEditDialog(recurring)}
-                      className="cursor-pointer"
-                    >
-                      <Pencil size={14} className="mr-2" />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => confirmDelete(recurring.id)}
-                      className="text-red-600 focus:text-red-600 cursor-pointer"
-                    >
-                      <X size={14} className="mr-2" />
-                      Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="grid gap-2">
+                  <Label htmlFor="amount">Valor</Label>
+                  <Input
+                    id="amount"
+                    value={newRecurring.valor}
+                    onChange={(e) => setNewRecurring({ ...newRecurring, valor: e.target.value })}
+                    placeholder="Ex: 1500,00"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="type">Tipo</Label>
+                  <Select
+                    value={newRecurring.tipo}
+                    onValueChange={(value) => setNewRecurring({ ...newRecurring, tipo: value as 'Despesa' | 'Receita' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Despesa">Despesa</SelectItem>
+                      <SelectItem value="Receita">Receita</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select
+                    value={newRecurring.categoria_id}
+                    onValueChange={(value) => setNewRecurring({ ...newRecurring, categoria_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="costCenter">Centro de Custo</Label>
+                  <Select
+                    value={newRecurring.centro_custo_id}
+                    onValueChange={(value) => setNewRecurring({ ...newRecurring, centro_custo_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o centro de custo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {costCenters.map((costCenter) => (
+                        <SelectItem key={costCenter.id} value={costCenter.id}>
+                          {costCenter.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="frequency">Frequência</Label>
+                  <Select
+                    value={newRecurring.frequencia}
+                    onValueChange={(value) => setNewRecurring({ ...newRecurring, frequencia: value as 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a frequência" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Mensal">Mensal</SelectItem>
+                      <SelectItem value="Trimestral">Trimestral</SelectItem>
+                      <SelectItem value="Semestral">Semestral</SelectItem>
+                      <SelectItem value="Anual">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dayOfMonth">Dia do mês</Label>
+                  <Input
+                    id="dayOfMonth"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={newRecurring.dia_mes}
+                    onChange={(e) => setNewRecurring({ ...newRecurring, dia_mes: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
               </div>
-              <CardDescription>
-                Categoria: {recurring.category || 'Não definida'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pb-2">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-muted-foreground text-sm">Valor</span>
-                <span className={`font-medium ${recurring.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(recurring.amount)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Frequência</span>
-                <span className="text-sm font-medium">
-                  {getFrequencyLabel(recurring.frequency)}
-                </span>
-              </div>
-            </CardContent>
-            <CardFooter className="pt-0 text-xs text-muted-foreground">
-              <div className="flex items-center">
-                <Calendar size={14} className="mr-2" />
-                {getNextDateText(recurring)}
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
-
-      {filteredRecurrings.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          Nenhum lançamento recorrente encontrado. Crie um novo lançamento para começar.
-        </div>
-      )}
-      
-      <AlertDialog open={isAlertDialogOpen} onOpenChange={setIsAlertDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir lançamento recorrente</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este lançamento recorrente? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
-              onClick={deleteRecurring}
-              disabled={deleteRecurringMutation.isPending}
-            >
-              {deleteRecurringMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : 'Excluir'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-};
-
-export default Recorrentes;
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setDialogOpen(false);
+                  resetRecurringForm();
+                }}>
+                  Cancelar
+                </Button>
+                <Button 
+                  className="bg-purple hover:bg-purple/90" 
+                  onClick={handleSaveRecurring}
+                  disabled={saveRecurringMutation.isP
+(Content truncated due to size limit. Use line ranges to read in chunks)

@@ -4,35 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { authAPI } from '@/services/api';
 import { Loader2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
-
-const authAPI = {
-  getUserProfile: async () => {
-    const res = await fetch(`${API_BASE_URL}/perfil.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return await res.json();
-  },
-  updateUserProfile: async (data: any) => {
-    const res = await fetch(`${API_BASE_URL}/atualizar-perfil.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return await res.json();
-  }
-};
 
 const Perfil = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    name: user?.nome || '',
     email: user?.email || '',
     currentPassword: '',
     newPassword: '',
@@ -44,12 +25,12 @@ const Perfil = () => {
     queryKey: ['userProfile'],
     queryFn: async () => {
       try {
-        const response = await authAPI.getUserProfile();
-        if (response.success) {
+        const response = await authAPI.user();
+        if (response.status === 'success') {
           // Update form with fetched data
           setFormData(prev => ({
             ...prev,
-            name: response.user.name || prev.name,
+            name: response.user.nome || prev.name,
             email: response.user.email || prev.email,
           }));
           return response.user;
@@ -70,10 +51,10 @@ const Perfil = () => {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await authAPI.updateUserProfile(data);
+      return await authAPI.update(data);
     },
     onSuccess: (data) => {
-      if (data.success) {
+      if (data.status === 'success') {
         toast({
           title: "Perfil atualizado",
           description: "Suas informações foram atualizadas com sucesso",
@@ -164,7 +145,7 @@ const Perfil = () => {
               <div className="space-y-4">
                 <div>
                   <span className="text-sm text-muted-foreground">Nome</span>
-                  <p className="font-medium">{userProfile?.name || user?.name || 'Não definido'}</p>
+                  <p className="font-medium">{userProfile?.nome || user?.nome || 'Não definido'}</p>
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">E-mail</span>
@@ -172,7 +153,7 @@ const Perfil = () => {
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">Função</span>
-                  <p className="font-medium">{userProfile?.role || 'Administrador'}</p>
+                  <p className="font-medium">{userProfile?.funcao || 'Administrador'}</p>
                 </div>
               </div>
             )}

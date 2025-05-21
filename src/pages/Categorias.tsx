@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
+  ChevronLeft, 
+  ChevronRight, 
   Plus, 
-  Search,
-  Pencil,
-  Trash2,
-  MoreHorizontal,
-  Loader2,
+  Filter,
+  ChevronDown,
+  Check,
   X,
-  Check
+  Download,
+  Upload
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,9 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -29,345 +31,156 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@/components/ui/skeleton';
-import FileImport from '@/components/FileImport';
-import { exportToExcel } from '@/utils/fileUtils';
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, addMonths, parse } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Checkbox } from '@/components/ui/checkbox';
+import { categoriesAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { exportToExcel } from '@/utils/fileUtils';
 
-const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
-
-const categoriesAPI = {
-  list: async () => {
-    const res = await fetch(`${API_BASE_URL}/listar-categorias.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return await res.json();
-  },
-  save: async (categoria: any) => {
-    const res = await fetch(`${API_BASE_URL}/salvar-categoria.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(categoria),
-    });
-    return await res.json();
-  }
-};
-
-// Define type for contact
-interface Contact {
+// Define category type
+interface Category {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
-  type: string;
-  company: string;
+  nome: string;
+  tipo: 'Despesa' | 'Receita';
 }
 
-// Define type for new contact form
-interface ContactForm {
-  name: string;
-  email: string;
-  phone: string;
-  type: string;
-  company: string;
+// Define new category form
+interface CategoryForm {
+  nome: string;
+  tipo: 'Despesa' | 'Receita';
 }
 
-const Contatos = () => {
-  const [newContact, setNewContact] = useState<ContactForm>({
-    name: '',
-    email: '',
-    phone: '',
-    type: 'client',
-    company: ''
+const Categorias = () => {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    tipo: 'all',
   });
   
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [currentContact, setCurrentContact] = useState<Contact | null>(null);
-  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
-  const [contactToDelete, setContactToDelete] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState<CategoryForm>({
+    nome: '',
+    tipo: 'Despesa',
+  });
   
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch contacts
-  const { data: contactsData, isLoading, isError, error } = useQuery({
-    queryKey: ['contacts'],
+  // Fetch categories
+  const { data: categoriesData, isLoading, isError } = useQuery({
+    queryKey: ['categories'],
     queryFn: async () => {
       try {
-        console.log('Fetching contacts...');
-        const response = await contactsAPI.list();
-        console.log('Response:', response);
-        return response.success ? response.contacts : [];
+        const response = await categoriesAPI.list();
+        return response.status === 'success' ? response.categorias : [];
       } catch (err) {
-        console.error('Error fetching contacts:', err);
+        console.error('Error fetching categories:', err);
         throw err;
       }
     }
   });
 
-  // Create contact mutation
-  const createContactMutation = useMutation({
-    mutationFn: (contact: ContactForm) => contactsAPI.save(contact),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast({
-        title: "Contato criado com sucesso",
-      });
-      setDialogOpen(false);
-      resetContactForm();
+  // Create/update category mutation
+  const saveCategoryMutation = useMutation({
+    mutationFn: (category: any) => categoriesAPI.save(category),
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
+        toast({
+          title: editingCategory ? "Categoria atualizada com sucesso" : "Categoria criada com sucesso",
+        });
+        setDialogOpen(false);
+        resetCategoryForm();
+      } else {
+        toast({
+          title: "Erro ao salvar categoria",
+          description: data.message || "Ocorreu um erro ao salvar a categoria",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       toast({
-        title: "Erro ao criar contato",
+        title: "Erro ao salvar categoria",
         description: String(error),
         variant: "destructive",
       });
     }
   });
 
-  // Update contact mutation
-  const updateContactMutation = useMutation({
-    mutationFn: (contact: Contact) => contactsAPI.save(contact),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast({
-        title: "Contato atualizado com sucesso",
-      });
-      setEditDialogOpen(false);
-      setCurrentContact(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao atualizar contato",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
+  const categories = categoriesData || [];
 
-  // Delete contact mutation
-  const deleteContactMutation = useMutation({
-    mutationFn: (id: string) => contactsAPI.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast({
-        title: "Contato excluído com sucesso",
-      });
-      setAlertDialogOpen(false);
-      setContactToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao excluir contato",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Bulk import contacts mutation
-  const bulkImportMutation = useMutation({
-    mutationFn: (contacts: ContactForm[]) => {
-      // Create a promise for each contact
-      const promises = contacts.map(contact => contactsAPI.save(contact));
-      return Promise.all(promises);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      setImportDialogOpen(false);
-      toast({
-        title: "Contatos importados com sucesso",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao importar contatos",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  const contacts = contactsData || [];
-
-  const resetContactForm = () => {
-    setNewContact({
-      name: '',
-      email: '',
-      phone: '',
-      type: 'client',
-      company: ''
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+  
+  const resetFilters = () => {
+    setFilters({
+      tipo: 'all',
     });
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    // Filter by tab
-    if (activeTab !== 'all' && contact.type !== activeTab) return false;
-    
-    // Filter by search
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        contact.name.toLowerCase().includes(searchLower) ||
-        contact.email.toLowerCase().includes(searchLower) ||
-        contact.company.toLowerCase().includes(searchLower)
-      );
-    }
-    
+  const resetCategoryForm = () => {
+    setNewCategory({
+      nome: '',
+      tipo: 'Despesa',
+    });
+    setEditingCategory(null);
+  };
+
+  const filteredCategories = categories.filter(category => {
+    // Apply filters
+    if (filters.tipo !== 'all' && category.tipo !== filters.tipo) return false;
     return true;
   });
-
-  const handleCreateContact = () => {
-    if (!newContact.name.trim()) {
+  
+  const handleSaveCategory = () => {
+    if (!newCategory.nome) {
       toast({
-        title: "Nome é obrigatório",
+        title: "Campo obrigatório",
+        description: "O nome da categoria é obrigatório.",
         variant: "destructive",
       });
       return;
     }
 
-    createContactMutation.mutate({
-      ...newContact,
-      name: newContact.name.trim(),
-      email: newContact.email.trim(),
-      phone: newContact.phone.trim(),
-      company: newContact.company.trim()
+    const categoryToSave = {
+      ...(editingCategory ? { id: editingCategory.id } : {}),
+      nome: newCategory.nome,
+      tipo: newCategory.tipo,
+    };
+    
+    saveCategoryMutation.mutate(categoryToSave);
+  };
+  
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setNewCategory({
+      nome: category.nome,
+      tipo: category.tipo,
     });
-  };
-  
-  const openEditDialog = (contact: Contact) => {
-    setCurrentContact(contact);
-    setEditDialogOpen(true);
-  };
-  
-  const handleUpdateContact = () => {
-    if (!currentContact || !currentContact.name.trim()) {
-      toast({
-        title: "Nome é obrigatório",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateContactMutation.mutate({
-      ...currentContact,
-      name: currentContact.name.trim(),
-      email: currentContact.email.trim(),
-      phone: currentContact.phone.trim(),
-      company: currentContact.company.trim()
-    });
-  };
-  
-  const confirmDelete = (id: string) => {
-    setContactToDelete(id);
-    setAlertDialogOpen(true);
-  };
-  
-  const deleteContact = () => {
-    if (!contactToDelete) return;
-    deleteContactMutation.mutate(contactToDelete);
-  };
-  
-  const getTypeLabel = (type: string) => {
-    switch(type) {
-      case 'client': return 'Cliente';
-      case 'supplier': return 'Fornecedor';
-      case 'employee': return 'Funcionário';
-      default: return 'Outro';
-    }
-  };
-  
-  const getTypeColor = (type: string) => {
-    switch(type) {
-      case 'client': return 'bg-green-100 text-green-800';
-      case 'supplier': return 'bg-blue-100 text-blue-800';
-      case 'employee': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    setDialogOpen(true);
   };
 
-  const handleImportContacts = (data: any[]) => {
-    // Map imported data to contact format
-    const contacts: ContactForm[] = data.map(item => ({
-      name: item.nome || item.name || '',
-      email: item.email || '',
-      phone: item.telefone || item.phone || '',
-      type: getContactTypeFromString(item.tipo || item.type || ''),
-      company: item.empresa || item.company || ''
-    }));
-
-    // Validate contacts
-    const validContacts = contacts.filter(contact => contact.name.trim() !== '');
-    
-    if (validContacts.length === 0) {
-      toast({
-        title: "Erro na importação",
-        description: "Nenhum contato válido encontrado no arquivo. O nome é obrigatório.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Import contacts
-    bulkImportMutation.mutate(validContacts);
-  };
-
-  const getContactTypeFromString = (typeString: string): string => {
-    const typeStringLower = typeString.toLowerCase();
-    
-    if (typeStringLower.includes('cliente') || typeStringLower.includes('client')) {
-      return 'client';
-    } else if (typeStringLower.includes('fornecedor') || typeStringLower.includes('supplier')) {
-      return 'supplier';
-    } else if (typeStringLower.includes('funcionário') || typeStringLower.includes('employee')) {
-      return 'employee';
-    }
-    
-    // Default to client
-    return 'client';
-  };
-
-  const handleExportContacts = () => {
-    // Transform contacts for export
-    const dataToExport = filteredContacts.map(contact => ({
-      Nome: contact.name,
-      Email: contact.email,
-      Telefone: contact.phone,
-      Empresa: contact.company,
-      Tipo: getTypeLabel(contact.type)
+  const handleExportCategories = () => {
+    // Transform categories for export
+    const dataToExport = filteredCategories.map(category => ({
+      Nome: category.nome,
+      Tipo: category.tipo,
     }));
     
-    exportToExcel(dataToExport, 'contatos');
+    exportToExcel(dataToExport, 'categorias');
     
     toast({
       title: "Exportação concluída",
-      description: "Os contatos foram exportados com sucesso.",
+      description: "As categorias foram exportadas com sucesso.",
     });
   };
 
@@ -376,23 +189,14 @@ const Contatos = () => {
     <>
       {[1, 2, 3, 4, 5].map((item) => (
         <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
-          <div className="col-span-3">
+          <div className="col-span-6">
             <Skeleton className="h-4 w-3/4" />
           </div>
-          <div className="col-span-3">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-4">
             <Skeleton className="h-4 w-1/2" />
           </div>
           <div className="col-span-2">
-            <Skeleton className="h-4 w-2/3" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-6 w-16 rounded-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-8 w-16 rounded-md" />
           </div>
         </div>
       ))}
@@ -403,13 +207,13 @@ const Contatos = () => {
   const renderErrorState = () => (
     <div className="p-8 text-center">
       <X className="mx-auto h-12 w-12 text-red-500" />
-      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar contatos</h3>
+      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar categorias</h3>
       <p className="mt-1 text-sm text-gray-500">
-        Não foi possível carregar a lista de contatos. Tente novamente mais tarde.
+        Não foi possível carregar a lista de categorias. Tente novamente mais tarde.
       </p>
       <div className="mt-6">
         <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['contacts'] })}
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['categories'] })}
           className="bg-purple hover:bg-purple/90"
         >
           Tentar novamente
@@ -421,375 +225,163 @@ const Contatos = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-purple-dark">Contatos</h1>
+        <h1 className="text-2xl font-bold text-purple-dark">Categorias</h1>
         <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-2" />
-                Importar/Exportar
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56">
-              <div className="flex flex-col gap-2">
-                <Button 
-                  variant="ghost" 
-                  className="justify-start"
-                  onClick={() => setImportDialogOpen(true)}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar planilha
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="justify-start"
-                  onClick={handleExportContacts}
-                  disabled={filteredContacts.length === 0}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar contatos
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <Button 
+            variant="outline" 
+            onClick={handleExportCategories}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
           
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-purple hover:bg-purple/90">
-                <Plus size={18} className="mr-2" />
-                Novo Contato
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Categoria
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle className="text-purple-dark">Novo Contato</DialogTitle>
+                <DialogTitle>{editingCategory ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome <span className="text-red-500">*</span></Label>
-                  <Input 
-                    id="name" 
-                    value={newContact.name}
-                    onChange={(e) => setNewContact({...newContact, name: e.target.value})}
-                    placeholder="Nome do contato ou empresa"
-                    required
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    value={newCategory.nome}
+                    onChange={(e) => setNewCategory({ ...newCategory, nome: e.target.value })}
+                    placeholder="Ex: Alimentação"
                   />
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email"
-                      value={newContact.email}
-                      onChange={(e) => setNewContact({...newContact, email: e.target.value})}
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input 
-                      id="phone" 
-                      value={newContact.phone}
-                      onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Tipo <span className="text-red-500">*</span></Label>
-                    <Select 
-                      value={newContact.type}
-                      onValueChange={(value) => setNewContact({...newContact, type: value})}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="client">Cliente</SelectItem>
-                        <SelectItem value="supplier">Fornecedor</SelectItem>
-                        <SelectItem value="employee">Funcionário</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Empresa</Label>
-                    <Input 
-                      id="company" 
-                      value={newContact.company}
-                      onChange={(e) => setNewContact({...newContact, company: e.target.value})}
-                      placeholder="Nome da empresa"
-                    />
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="type">Tipo</Label>
+                  <Select
+                    value={newCategory.tipo}
+                    onValueChange={(value) => setNewCategory({ ...newCategory, tipo: value as 'Despesa' | 'Receita' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Despesa">Despesa</SelectItem>
+                      <SelectItem value="Receita">Receita</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button variant="outline" onClick={() => {
+                  setDialogOpen(false);
+                  resetCategoryForm();
+                }}>
+                  Cancelar
+                </Button>
                 <Button 
                   className="bg-purple hover:bg-purple/90" 
-                  onClick={handleCreateContact}
-                  disabled={createContactMutation.isPending}
+                  onClick={handleSaveCategory}
+                  disabled={saveCategoryMutation.isPending}
                 >
-                  {createContactMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando...
-                    </>
-                  ) : 'Criar Contato'}
+                  {saveCategoryMutation.isPending ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
-          <TabsList>
-            <TabsTrigger value="all">Todos</TabsTrigger>
-            <TabsTrigger value="client">Clientes</TabsTrigger>
-            <TabsTrigger value="supplier">Fornecedores</TabsTrigger>
-            <TabsTrigger value="employee">Funcionários</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        
-        <div className="relative w-full md:w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input 
-            placeholder="Buscar contato..." 
-            className="pl-8" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button 
-              className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground"
-              onClick={() => setSearchTerm('')}
+      
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">
+              Lista de Categorias
+            </h2>
+            <Button
+              variant="outline"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className="flex items-center gap-2"
             >
-              <X size={16} />
-            </button>
+              <Filter className="h-4 w-4" />
+              Filtros
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {filterOpen && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+              <div>
+                <Label htmlFor="type-filter">Tipo</Label>
+                <Select
+                  value={filters.tipo}
+                  onValueChange={(value) => handleFilterChange('tipo', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="Despesa">Despesas</SelectItem>
+                    <SelectItem value="Receita">Receitas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" className="w-full" onClick={resetFilters}>
+                  Limpar Filtros
+                </Button>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg border border-border overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
-          <div className="col-span-3">Nome</div>
-          <div className="col-span-3">Email</div>
-          <div className="col-span-2">Telefone</div>
-          <div className="col-span-2">Empresa</div>
-          <div className="col-span-1">Tipo</div>
-          <div className="col-span-1"></div>
-        </div>
-
-        {isLoading ? (
-          renderLoadingSkeleton()
-        ) : isError ? (
-          renderErrorState()
-        ) : filteredContacts.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            {searchTerm 
-              ? "Nenhum contato encontrado para essa busca." 
-              : "Nenhum contato encontrado. Cadastre seu primeiro contato!"}
-          </div>
-        ) : (
-          filteredContacts.map((contact) => (
-            <div 
-              key={contact.id} 
-              className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
-            >
-              <div className="col-span-3 font-medium">
-                {contact.name}
+          
+          <div className="border rounded-md">
+            <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
+              <div className="col-span-6">Nome</div>
+              <div className="col-span-4">Tipo</div>
+              <div className="col-span-2"></div>
+            </div>
+            
+            {isLoading ? (
+              renderLoadingSkeleton()
+            ) : isError ? (
+              renderErrorState()
+            ) : filteredCategories.length === 0 ? (
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Nenhuma categoria encontrada</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Não há categorias com os filtros aplicados.
+                </p>
               </div>
-              <div className="col-span-3 text-muted-foreground">
-                {contact.email}
-              </div>
-              <div className="col-span-2">
-                {contact.phone}
-              </div>
-              <div className="col-span-2 text-muted-foreground">
-                {contact.company}
-              </div>
-              <div className="col-span-1">
-                <span className={`px-2 py-1 rounded-full text-xs ${getTypeColor(contact.type)}`}>
-                  {getTypeLabel(contact.type)}
-                </span>
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal size={16} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => openEditDialog(contact)}
-                      className="cursor-pointer"
+            ) : (
+              filteredCategories.map((category) => (
+                <div 
+                  key={category.id} 
+                  className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+                >
+                  <div className="col-span-6 font-medium">
+                    {category.nome}
+                  </div>
+                  <div className={`col-span-4 ${category.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'}`}>
+                    {category.tipo}
+                  </div>
+                  <div className="col-span-2 flex justify-end">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditCategory(category)}
                     >
-                      <Pencil size={14} className="mr-2" />
                       Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => confirmDelete(contact.id)}
-                      className="text-red-600 focus:text-red-600 cursor-pointer"
-                    >
-                      <Trash2 size={14} className="mr-2" />
-                      Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Edit Contact Dialog */}
-      {currentContact && (
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-purple-dark">Editar Contato</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Nome <span className="text-red-500">*</span></Label>
-                <Input 
-                  id="edit-name" 
-                  value={currentContact.name}
-                  onChange={(e) => setCurrentContact({...currentContact, name: e.target.value})}
-                  required
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email</Label>
-                  <Input 
-                    id="edit-email" 
-                    type="email"
-                    value={currentContact.email}
-                    onChange={(e) => setCurrentContact({...currentContact, email: e.target.value})}
-                  />
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Telefone</Label>
-                  <Input 
-                    id="edit-phone" 
-                    value={currentContact.phone}
-                    onChange={(e) => setCurrentContact({...currentContact, phone: e.target.value})}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-type">Tipo <span className="text-red-500">*</span></Label>
-                  <Select 
-                    value={currentContact.type}
-                    onValueChange={(value) => setCurrentContact({...currentContact, type: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="client">Cliente</SelectItem>
-                      <SelectItem value="supplier">Fornecedor</SelectItem>
-                      <SelectItem value="employee">Funcionário</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-company">Empresa</Label>
-                  <Input 
-                    id="edit-company" 
-                    value={currentContact.company}
-                    onChange={(e) => setCurrentContact({...currentContact, company: e.target.value})}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-              <Button 
-                className="bg-purple hover:bg-purple/90" 
-                onClick={handleUpdateContact}
-                disabled={updateContactMutation.isPending}
-              >
-                {updateContactMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : 'Salvar Alterações'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      
-      {/* Import Dialog */}
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-purple-dark">Importar Contatos</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <FileImport 
-              onImportSuccess={handleImportContacts}
-              isLoading={bulkImportMutation.isPending}
-            />
-            <div className="mt-4 p-3 bg-gray-50 rounded-md text-sm">
-              <p className="font-medium mb-1">Formato esperado:</p>
-              <p>A planilha deve conter colunas com os seguintes cabeçalhos:</p>
-              <ul className="list-disc pl-5 mt-1 space-y-1 text-muted-foreground">
-                <li>nome ou name (obrigatório)</li>
-                <li>email</li>
-                <li>telefone ou phone</li>
-                <li>empresa ou company</li>
-                <li>tipo ou type (cliente/fornecedor/funcionário)</li>
-              </ul>
-            </div>
+              ))
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir contato</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este contato? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
-              onClick={deleteContact}
-              disabled={deleteContactMutation.isPending}
-            >
-              {deleteContactMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : 'Excluir'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-export default Contatos;
+export default Categorias;

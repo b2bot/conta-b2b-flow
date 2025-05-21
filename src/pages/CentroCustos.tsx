@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
-  Plus, 
-  X,
-  Pencil,
-  MoreHorizontal,
-  Loader2,
-  Check
-} from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Plus, 
+  Filter,
+  ChevronDown,
+  Check,
+  X,
+  Download,
+  Upload
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,60 +20,52 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, addMonths, parse } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Checkbox } from '@/components/ui/checkbox';
+import { costCentersAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { exportToExcel } from '@/utils/fileUtils';
 
-const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
-
-const costCentersAPI = {
-  list: async () => {
-    const res = await fetch(`${API_BASE_URL}/listar-centro-custos.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return await res.json();
-  },
-  save: async (centro: any) => {
-    const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(centro),
-    });
-    return await res.json();
-  }
-};
-
+// Define cost center type
 interface CostCenter {
   id: string;
-  name: string;
-  budget: number;
-  used?: number;
+  nome: string;
+  descricao: string;
+}
+
+// Define new cost center form
+interface CostCenterForm {
+  nome: string;
+  descricao: string;
 }
 
 const CentroCustos = () => {
-  const [newCostCenter, setNewCostCenter] = useState({ name: '', budget: '' });
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ name: '', budget: '' });
-  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
-  const [centerToDelete, setCenterToDelete] = useState<string | null>(null);
+  const [newCostCenter, setNewCostCenter] = useState<CostCenterForm>({
+    nome: '',
+    descricao: '',
+  });
+  
+  const [editingCostCenter, setEditingCostCenter] = useState<CostCenter | null>(null);
   const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch cost centers
@@ -81,75 +74,36 @@ const CentroCustos = () => {
     queryFn: async () => {
       try {
         const response = await costCentersAPI.list();
-        return response.success ? response.costCenters : [];
-      } catch (error) {
-        console.error('Error fetching cost centers:', error);
-        toast({
-          title: "Erro ao carregar centros de custo",
-          description: "Não foi possível carregar a lista de centros de custo",
-          variant: "destructive",
-        });
-        return [];
+        return response.status === 'success' ? response.centros_custo : [];
+      } catch (err) {
+        console.error('Error fetching cost centers:', err);
+        throw err;
       }
     }
   });
 
-  // Create cost center mutation
-  const createCostCenterMutation = useMutation({
-    mutationFn: (costCenter: { name: string; budget: number }) => costCentersAPI.save(costCenter),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['costCenters'] });
-      toast({
-        title: "Centro de custo criado com sucesso",
-      });
-      setDialogOpen(false);
-      setNewCostCenter({ name: '', budget: '' });
+  // Create/update cost center mutation
+  const saveCostCenterMutation = useMutation({
+    mutationFn: (costCenter: any) => costCentersAPI.save(costCenter),
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['costCenters'] });
+        toast({
+          title: editingCostCenter ? "Centro de custo atualizado com sucesso" : "Centro de custo criado com sucesso",
+        });
+        setDialogOpen(false);
+        resetCostCenterForm();
+      } else {
+        toast({
+          title: "Erro ao salvar centro de custo",
+          description: data.message || "Ocorreu um erro ao salvar o centro de custo",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       toast({
-        title: "Erro ao criar centro de custo",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Update cost center mutation
-  const updateCostCenterMutation = useMutation({
-    mutationFn: ({ id, name, budget }: { id: string; name: string; budget: number }) => {
-      return costCentersAPI.save({ id, name, budget });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['costCenters'] });
-      toast({
-        title: "Centro de custo atualizado com sucesso",
-      });
-      setEditId(null);
-      setEditData({ name: '', budget: '' });
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao atualizar centro de custo",
-        description: String(error),
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Delete cost center mutation
-  const deleteCostCenterMutation = useMutation({
-    mutationFn: (id: string) => costCentersAPI.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['costCenters'] });
-      toast({
-        title: "Centro de custo excluído com sucesso",
-      });
-      setAlertDialogOpen(false);
-      setCenterToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao excluir centro de custo",
+        title: "Erro ao salvar centro de custo",
         description: String(error),
         variant: "destructive",
       });
@@ -158,298 +112,212 @@ const CentroCustos = () => {
 
   const costCenters = costCentersData || [];
 
-  const handleCreateCostCenter = () => {
-    if (!newCostCenter.name.trim()) {
-      toast({
-        title: "Nome do centro de custo é obrigatório",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!newCostCenter.budget.trim()) {
-      toast({
-        title: "Orçamento é obrigatório",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createCostCenterMutation.mutate({
-      name: newCostCenter.name.trim(),
-      budget: parseFloat(newCostCenter.budget)
+  const resetCostCenterForm = () => {
+    setNewCostCenter({
+      nome: '',
+      descricao: '',
     });
+    setEditingCostCenter(null);
   };
   
-  const startEdit = (id: string, name: string, budget: number) => {
-    setEditId(id);
-    setEditData({ name, budget: budget.toString() });
-  };
-  
-  const cancelEdit = () => {
-    setEditId(null);
-    setEditData({ name: '', budget: '' });
-  };
-  
-  const saveEdit = (id: string) => {
-    if (!editData.name.trim()) {
+  const handleSaveCostCenter = () => {
+    if (!newCostCenter.nome) {
       toast({
-        title: "Nome do centro de custo é obrigatório",
+        title: "Campo obrigatório",
+        description: "O nome do centro de custo é obrigatório.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!editData.budget.trim()) {
-      toast({
-        title: "Orçamento é obrigatório",
-        variant: "destructive",
-      });
-      return;
-    }
+    const costCenterToSave = {
+      ...(editingCostCenter ? { id: editingCostCenter.id } : {}),
+      nome: newCostCenter.nome,
+      descricao: newCostCenter.descricao,
+    };
     
-    updateCostCenterMutation.mutate({
-      id,
-      name: editData.name.trim(),
-      budget: parseFloat(editData.budget)
+    saveCostCenterMutation.mutate(costCenterToSave);
+  };
+  
+  const handleEditCostCenter = (costCenter: CostCenter) => {
+    setEditingCostCenter(costCenter);
+    setNewCostCenter({
+      nome: costCenter.nome,
+      descricao: costCenter.descricao,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleExportCostCenters = () => {
+    // Transform cost centers for export
+    const dataToExport = costCenters.map(costCenter => ({
+      Nome: costCenter.nome,
+      Descrição: costCenter.descricao,
+    }));
+    
+    exportToExcel(dataToExport, 'centros_custo');
+    
+    toast({
+      title: "Exportação concluída",
+      description: "Os centros de custo foram exportados com sucesso.",
     });
   };
-  
-  const confirmDelete = (id: string) => {
-    setCenterToDelete(id);
-    setAlertDialogOpen(true);
-  };
-  
-  const deleteCostCenter = () => {
-    if (!centerToDelete) return;
-    deleteCostCenterMutation.mutate(centerToDelete);
-  };
-  
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
 
-  // Calculate used budget (mocked for now, can be replaced with actual data from API when available)
-  const getUsedBudget = (center: CostCenter) => {
-    return center.used !== undefined ? center.used : center.budget * 0.3;
-  };
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold text-purple-dark">Centro de Custos</h1>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-purple" />
-          <span className="ml-2">Carregando centros de custo...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (isError) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold text-purple-dark">Centro de Custos</h1>
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
-          <p className="text-center">Erro ao carregar centros de custo. Por favor, tente novamente.</p>
-          <div className="flex justify-center mt-4">
-            <Button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['costCenters'] })}
-              className="bg-purple hover:bg-purple/90"
-            >
-              Tentar novamente
-            </Button>
+  // Render loading skeleton
+  const renderLoadingSkeleton = () => (
+    <>
+      {[1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+          <div className="col-span-4">
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="col-span-6">
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-8 w-16 rounded-md" />
           </div>
         </div>
+      ))}
+    </>
+  );
+
+  // Render error state
+  const renderErrorState = () => (
+    <div className="p-8 text-center">
+      <X className="mx-auto h-12 w-12 text-red-500" />
+      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar centros de custo</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        Não foi possível carregar a lista de centros de custo. Tente novamente mais tarde.
+      </p>
+      <div className="mt-6">
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['costCenters'] })}
+          className="bg-purple hover:bg-purple/90"
+        >
+          Tentar novamente
+        </Button>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Centro de Custos</h1>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-purple hover:bg-purple/90">
-              <Plus size={18} className="mr-2" />
-              Novo Centro de Custo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle className="text-purple-dark">Novo Centro de Custo</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do centro de custo</Label>
-                <Input 
-                  id="name" 
-                  value={newCostCenter.name}
-                  onChange={(e) => setNewCostCenter({...newCostCenter, name: e.target.value})}
-                  placeholder="Ex: Marketing, Vendas, etc."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="budget">Orçamento</Label>
-                <Input 
-                  id="budget" 
-                  value={newCostCenter.budget}
-                  onChange={(e) => setNewCostCenter({...newCostCenter, budget: e.target.value})}
-                  placeholder="0,00"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button 
-                className="bg-purple hover:bg-purple/90" 
-                onClick={handleCreateCostCenter}
-                disabled={createCostCenterMutation.isPending}
-              >
-                {createCostCenterMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Criando...
-                  </>
-                ) : 'Criar Centro de Custo'}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleExportCostCenters}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+          
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-purple hover:bg-purple/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Centro de Custo
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {costCenters.map((center) => (
-          <Card key={center.id}>
-            <CardContent className="p-4">
-              {editId === center.id ? (
-                <div className="space-y-3">
-                  <Input 
-                    value={editData.name} 
-                    onChange={(e) => setEditData({...editData, name: e.target.value})}
-                    placeholder="Nome do centro de custo"
-                    autoFocus
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingCostCenter ? 'Editar Centro de Custo' : 'Novo Centro de Custo'}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    value={newCostCenter.nome}
+                    onChange={(e) => setNewCostCenter({ ...newCostCenter, nome: e.target.value })}
+                    placeholder="Ex: Administrativo"
                   />
-                  <Input 
-                    value={editData.budget} 
-                    onChange={(e) => setEditData({...editData, budget: e.target.value})}
-                    placeholder="Orçamento"
-                    type="number"
-                    min="0"
-                    step="0.01"
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Descrição</Label>
+                  <Input
+                    id="description"
+                    value={newCostCenter.descricao}
+                    onChange={(e) => setNewCostCenter({ ...newCostCenter, descricao: e.target.value })}
+                    placeholder="Ex: Despesas administrativas gerais"
                   />
-                  <div className="flex justify-end space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={cancelEdit}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button 
-                      variant="default"
-                      size="sm"
-                      className="bg-purple hover:bg-purple/90"
-                      onClick={() => saveEdit(center.id)}
-                      disabled={updateCostCenterMutation.isPending}
-                    >
-                      {updateCostCenterMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Salvando...
-                        </>
-                      ) : 'Salvar'}
-                    </Button>
-                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-medium text-lg">{center.name}</h3>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={() => startEdit(center.id, center.name, center.budget)}
-                          className="cursor-pointer"
-                        >
-                          <Pencil size={14} className="mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => confirmDelete(center.id)}
-                          className="text-red-600 focus:text-red-600 cursor-pointer"
-                        >
-                          <X size={14} className="mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Orçamento: <span className="font-medium text-purple-dark">{formatCurrency(center.budget)}</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-purple rounded-full" 
-                      style={{width: `${(getUsedBudget(center) / center.budget) * 100}%`}}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span>Utilizado: {formatCurrency(getUsedBudget(center))}</span>
-                    <span>Disponível: {formatCurrency(center.budget - getUsedBudget(center))}</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      
-      {costCenters.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          Nenhum centro de custo encontrado. Crie um novo centro de custo para começar.
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setDialogOpen(false);
+                  resetCostCenterForm();
+                }}>
+                  Cancelar
+                </Button>
+                <Button 
+                  className="bg-purple hover:bg-purple/90" 
+                  onClick={handleSaveCostCenter}
+                  disabled={saveCostCenterMutation.isPending}
+                >
+                  {saveCostCenterMutation.isPending ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
-      )}
+      </div>
       
-      <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir centro de custo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este centro de custo? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
-              onClick={deleteCostCenter}
-              disabled={deleteCostCenterMutation.isPending}
-            >
-              {deleteCostCenterMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : 'Excluir'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">
+              Lista de Centros de Custo
+            </h2>
+          </div>
+          
+          <div className="border rounded-md">
+            <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
+              <div className="col-span-4">Nome</div>
+              <div className="col-span-6">Descrição</div>
+              <div className="col-span-2"></div>
+            </div>
+            
+            {isLoading ? (
+              renderLoadingSkeleton()
+            ) : isError ? (
+              renderErrorState()
+            ) : costCenters.length === 0 ? (
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Nenhum centro de custo encontrado</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Crie um novo centro de custo para começar.
+                </p>
+              </div>
+            ) : (
+              costCenters.map((costCenter) => (
+                <div 
+                  key={costCenter.id} 
+                  className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+                >
+                  <div className="col-span-4 font-medium">
+                    {costCenter.nome}
+                  </div>
+                  <div className="col-span-6 text-muted-foreground">
+                    {costCenter.descricao}
+                  </div>
+                  <div className="col-span-2 flex justify-end">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditCostCenter(costCenter)}
+                    >
+                      Editar
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
