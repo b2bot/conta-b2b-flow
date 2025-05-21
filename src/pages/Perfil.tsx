@@ -11,8 +11,15 @@ import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle } from 'lucide-react';
 
+interface ProfileForm {
+  email: string;
+  nome_completo: string;
+  empresa: string;
+  telefone: string;
+}
+
 const Perfil = () => {
-  const { user, updateUser } = useAuth();
+  const { user, setUser } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   
@@ -20,7 +27,7 @@ const Perfil = () => {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
+  } = useForm<ProfileForm>({
     defaultValues: {
       email: user?.email || '',
       nome_completo: user?.nome_completo || '',
@@ -29,7 +36,7 @@ const Perfil = () => {
     },
   });
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: ProfileForm) => {
     setLoading(true);
     try {
       const response = await userAPI.updateProfile(data);
@@ -42,7 +49,7 @@ const Perfil = () => {
         
         // Atualiza o contexto de autenticação com os novos dados
         if (user) {
-          updateUser({
+          setUser({
             ...user,
             ...data,
           });
@@ -89,7 +96,7 @@ const Perfil = () => {
               <Avatar className="h-32 w-32 mb-6">
                 <AvatarImage src="" />
                 <AvatarFallback className="bg-purple text-white text-3xl">
-                  {user ? getInitials(user.nome_completo || '') : <UserCircle />}
+                  {user?.nome_completo ? getInitials(user.nome_completo) : <UserCircle />}
                 </AvatarFallback>
               </Avatar>
               <h2 className="text-xl font-semibold mb-1">{user?.nome_completo}</h2>

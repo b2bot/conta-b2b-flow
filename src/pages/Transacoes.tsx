@@ -8,10 +8,6 @@ import {
   Plus, 
   Filter,
   ChevronDown,
-  Check,
-  X,
-  Download,
-  Upload,
   MoreVertical,
   Loader
 } from 'lucide-react';
@@ -21,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,23 +35,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths, parse } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Checkbox } from '@/components/ui/checkbox';
 import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@/components/ui/skeleton';
-import { exportToExcel } from '@/utils/fileUtils';
-import { Switch } from '@/components/ui/switch';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import TransactionTable from '@/components/TransactionTable';
 
 // Define transaction type
 interface Transaction {
@@ -116,8 +102,6 @@ const Transacoes = () => {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
-  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch transactions
@@ -159,13 +143,6 @@ const Transacoes = () => {
     setCurrentMonth(prevMonth => addMonths(prevMonth, -1));
   };
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
-
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
@@ -190,9 +167,6 @@ const Transacoes = () => {
           break;
         case 'despesas-fixas':
           setFilters(prev => ({ ...prev, tipo: 'Despesa', categoria: 'Fixa' }));
-          break;
-        case 'impostos':
-          setFilters(prev => ({ ...prev, tipo: 'Despesa', categoria: 'Imposto' }));
           break;
         default:
           break;
@@ -258,10 +232,10 @@ const Transacoes = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao salvar transação",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -286,10 +260,10 @@ const Transacoes = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar status",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -308,12 +282,11 @@ const Transacoes = () => {
       toast({
         title: "Transação excluída com sucesso",
       });
-      setTransactionToDelete(null);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao excluir transação",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -363,8 +336,9 @@ const Transacoes = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    setTransactionToDelete(id);
-    deleteTransactionMutation.mutate(id);
+    if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
+      deleteTransactionMutation.mutate(id);
+    }
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
@@ -398,67 +372,10 @@ const Transacoes = () => {
     setExpandedTransaction(expandedTransaction === id ? null : id);
   };
 
-  const getPaymentStatusTag = (transaction: Transaction) => {
-    if (transaction.recurrence === 'monthly') {
-      return <Badge className="bg-blue-500 hover:bg-blue-600">Mensal</Badge>;
-    } else if (transaction.recurrence === 'yearly') {
-      return <Badge className="bg-purple-500 hover:bg-purple-600">Anual</Badge>;
-    } else if (transaction.status) {
-      return <Badge className="bg-orange-500 hover:bg-orange-600">{transaction.status}</Badge>;
-    }
-    return null;
-  };
-
   // Effect to handle filtering based on quick filters
   useEffect(() => {
     refetch();
   }, [filters, refetch]);
-
-  // Generates the table headers based on the transaction type filter
-  const renderTableHeaders = () => {
-    // Default headers for all transaction types
-    if (filters.tipo === 'all') {
-      return (
-        <>
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">{filters.tipo === 'Receita' ? 'Recebido de' : 'Pago a'}</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </>
-      );
-    }
-    
-    // Headers for Receita transactions
-    if (filters.tipo === 'Receita') {
-      return (
-        <>
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">Recebido de</div>
-          <div className="col-span-2">Tipo pagamento</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </>
-      );
-    }
-    
-    // Headers for Despesa transactions
-    return (
-      <>
-        <div className="col-span-1">Data</div>
-        <div className="col-span-3">Descrição</div>
-        <div className="col-span-2">Pago a</div>
-        <div className="col-span-2">Categoria</div>
-        <div className="col-span-2 text-right">Valor</div>
-        <div className="col-span-1 text-center">Status</div>
-        <div className="col-span-1"></div>
-      </>
-    );
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -476,6 +393,9 @@ const Transacoes = () => {
               <DialogTitle className="text-purple-dark">
                 {isEditing ? 'Editar Transação' : 'Nova Transação'}
               </DialogTitle>
+              <DialogDescription>
+                {isEditing ? 'Edite as informações da transação.' : 'Preencha as informações para criar uma nova transação.'}
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -563,6 +483,7 @@ const Transacoes = () => {
                         onSelect={(date) => date && setNewTransaction({ ...newTransaction, data: date })}
                         initialFocus
                         locale={ptBR}
+                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
@@ -594,16 +515,16 @@ const Transacoes = () => {
                 />
               </div>
               <div className="flex items-center space-x-2">
-                <Switch
-                  id="paid"
-                  checked={newTransaction.paid}
-                  onCheckedChange={(checked) =>
-                    setNewTransaction({ ...newTransaction, paid: checked })
-                  }
-                />
-                <Label htmlFor="paid">
+                <Label htmlFor="paid" className="mr-2">
                   {newTransaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
                 </Label>
+                <Input
+                  id="date-paid"
+                  type="text"
+                  placeholder="DD/MM/AAAA"
+                  className="max-w-[120px]"
+                  defaultValue={format(new Date(), 'dd/MM/yyyy')}
+                />
               </div>
             </div>
             <DialogFooter>
@@ -653,13 +574,6 @@ const Transacoes = () => {
             onClick={() => applyQuickFilter('despesas-fixas')}
           >
             <Badge className={`${activeFilter === 'despesas-fixas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas Fixas</Badge>
-          </ToggleGroupItem>
-          <ToggleGroupItem 
-            value="impostos" 
-            className="rounded-full"
-            onClick={() => applyQuickFilter('impostos')}
-          >
-            <Badge className={`${activeFilter === 'impostos' ? 'bg-red-600' : 'bg-red-500 hover:bg-red-600'}`}>Impostos</Badge>
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -758,119 +672,16 @@ const Transacoes = () => {
         </Card>
       )}
       
-      <div className="bg-white rounded-lg border border-border overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
-          {renderTableHeaders()}
-        </div>
-        {isLoading ? (
-          <div className="p-8 text-center text-muted-foreground">
-            Carregando transações...
-          </div>
-        ) : filteredTransactions.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            Nenhuma transação encontrada para este período.
-          </div>
-        ) : (
-          filteredTransactions.map((transaction) => (
-            <React.Fragment key={transaction.id}>
-              <div 
-                className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
-              >
-                <div className="col-span-1">
-                  {format(new Date(transaction.data), 'dd/MM/yyyy')}
-                </div>
-                <div className="col-span-3 font-medium">
-                  <div className="flex items-center gap-2">
-                    {transaction.descricao}
-                    {getPaymentStatusTag(transaction)}
-                  </div>
-                </div>
-                <div className="col-span-2 text-muted-foreground">
-                  {transaction.paymentTo}
-                </div>
-                <div className="col-span-2">
-                  <Badge 
-                    variant="outline" 
-                    className={`px-2 py-1 text-xs border-1 ${
-                      transaction.tipo === 'Receita' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'
-                    }`}
-                  >
-                    {transaction.categoria_nome}
-                  </Badge>
-                </div>
-                <div
-                  className={`col-span-2 font-medium text-right ${
-                    transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
-                  }`}
-                >
-                  {formatCurrency(transaction.valor)}
-                </div>
-                <div className="col-span-1 flex justify-center">
-                  <Switch 
-                    checked={transaction.paid}
-                    onCheckedChange={() => toggleTransactionPaid(transaction)}
-                  />
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical size={16} />
-                        <span className="sr-only">Abrir menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
-                        {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => handleDeleteTransaction(transaction.id)}
-                        className="text-red-600"
-                      >
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-              {/* Expanded transaction details */}
-              {expandedTransaction === transaction.id && (
-                <div className="border-b border-border bg-muted/20 px-4 py-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="mb-2">
-                        <span className="font-medium">Descrição completa:</span> 
-                        <p className="text-muted-foreground mt-1">{transaction.detalhes || 'Sem descrição adicional.'}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">Data de criação:</span> 
-                        <p className="text-muted-foreground">{format(new Date(transaction.data), 'dd/MM/yyyy')}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-2">
-                        <span className="font-medium">Contato:</span> 
-                        <p className="text-muted-foreground">{transaction.paymentTo}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">Tipo de recorrência:</span> 
-                        <p className="text-muted-foreground">
-                          {transaction.recurrence === 'monthly' ? 'Mensal' : 
-                           transaction.recurrence === 'yearly' ? 'Anual' : 'Não recorrente'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-          ))
-        )}
-      </div>
+      <TransactionTable
+        isLoading={isLoading}
+        filteredTransactions={filteredTransactions}
+        filters={filters}
+        expandedTransaction={expandedTransaction}
+        toggleExpandTransaction={toggleExpandTransaction}
+        toggleTransactionPaid={toggleTransactionPaid}
+        handleEditTransaction={handleEditTransaction}
+        handleDeleteTransaction={handleDeleteTransaction}
+      />
     </div>
   );
 };

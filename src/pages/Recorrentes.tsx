@@ -3,14 +3,11 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, 
-  ChevronRight, 
+  ChevronDown, 
   Plus, 
   Filter,
-  ChevronDown,
   MoreVertical,
   Loader,
-  Calendar 
 } from 'lucide-react';
 import {
   Dialog,
@@ -18,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,9 +32,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format, addMonths, parse } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { recurrencesAPI, categoriesAPI, contactsAPI } from '@/services/api';
+import { recurringAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -49,6 +46,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from "@/components/ui/calendar";
 
 // Define types
 interface Recurrence {
@@ -112,7 +110,7 @@ const Recorrentes = () => {
   const { data: recurrencesData = [], isLoading } = useQuery({
     queryKey: ['recurrences'],
     queryFn: async () => {
-      const response = await recurrencesAPI.list();
+      const response = await recurringAPI.list();
       return response.status === 'success' ? response.recorrencias : [];
     }
   });
@@ -189,8 +187,8 @@ const Recorrentes = () => {
 
   // Save recurrence mutation
   const saveRecurrenceMutation = useMutation({
-    mutationFn: (recurrence: any) => recurrencesAPI.save(recurrence),
-    onSuccess: (data) => {
+    mutationFn: (recurrence: any) => recurringAPI.save(recurrence),
+    onSuccess: (data: any) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['recurrences'] });
         toast({
@@ -206,10 +204,10 @@ const Recorrentes = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao salvar recorrência",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -218,12 +216,12 @@ const Recorrentes = () => {
   // Update next date mutation
   const updateNextDateMutation = useMutation({
     mutationFn: (data: {id: string, proxima_data: string}) => {
-      return recurrencesAPI.save({
+      return recurringAPI.save({
         id: data.id,
         proxima_data: data.proxima_data
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['recurrences'] });
         toast({
@@ -238,10 +236,10 @@ const Recorrentes = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar data",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -250,12 +248,12 @@ const Recorrentes = () => {
   // Toggle active status mutation
   const toggleActiveMutation = useMutation({
     mutationFn: (recurrence: Recurrence) => {
-      return recurrencesAPI.save({
+      return recurringAPI.save({
         id: recurrence.id,
         ativo: !recurrence.ativo
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['recurrences'] });
         toast({
@@ -269,10 +267,10 @@ const Recorrentes = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar status",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -292,10 +290,10 @@ const Recorrentes = () => {
         title: "Recorrência excluída com sucesso",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao excluir recorrência",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -410,11 +408,14 @@ const Recorrentes = () => {
   const renderLoadingSkeleton = () => (
     <>
       {[1, 2, 3, 4].map((item) => (
-        <div key={item} className="grid grid-cols-10 gap-4 p-4 border-b border-border items-center">
-          <div className="col-span-3">
+        <div key={item} className="grid grid-cols-9 gap-4 p-4 border-b border-border items-center">
+          <div className="col-span-2">
             <Skeleton className="h-4 w-3/4" />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="col-span-1">
             <Skeleton className="h-4 w-full" />
           </div>
           <div className="col-span-1">
@@ -453,6 +454,9 @@ const Recorrentes = () => {
               <DialogTitle className="text-purple-dark">
                 {isEditing ? 'Editar Lançamento Recorrente' : 'Novo Lançamento Recorrente'}
               </DialogTitle>
+              <DialogDescription>
+                {isEditing ? 'Edite as informações do lançamento recorrente.' : 'Preencha as informações para criar um novo lançamento recorrente.'}
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -571,6 +575,7 @@ const Recorrentes = () => {
                       onSelect={(date) => date && setNewRecurrence({ ...newRecurrence, proxima_data: date })}
                       initialFocus
                       locale={ptBR}
+                      className="p-3 pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
@@ -608,6 +613,9 @@ const Recorrentes = () => {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="text-purple-dark">Editar Próxima Data</DialogTitle>
+            <DialogDescription>
+              Selecione a nova data para o lançamento recorrente.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
@@ -617,8 +625,31 @@ const Recorrentes = () => {
                   mode="single"
                   selected={nextDate}
                   onSelect={(date) => date && setNextDate(date)}
-                  className="mx-auto"
+                  className="mx-auto p-3 pointer-events-auto"
                   locale={ptBR}
+                />
+              </div>
+              <div className="mt-4">
+                <Input
+                  type="text"
+                  placeholder="DD/MM/AAAA"
+                  value={format(nextDate, 'dd/MM/yyyy')}
+                  onChange={(e) => {
+                    try {
+                      const parts = e.target.value.split('/');
+                      if (parts.length === 3) {
+                        const day = parseInt(parts[0], 10);
+                        const month = parseInt(parts[1], 10) - 1;
+                        const year = parseInt(parts[2], 10);
+                        const newDate = new Date(year, month, day);
+                        if (!isNaN(newDate.getTime())) {
+                          setNextDate(newDate);
+                        }
+                      }
+                    } catch (err) {
+                      // ignore invalid dates
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -738,7 +769,7 @@ const Recorrentes = () => {
       <Card>
         <CardContent className="p-0">
           <div className="border rounded-md overflow-hidden">
-            <div className="grid grid-cols-10 gap-4 p-4 bg-muted/50 text-sm font-medium text-muted-foreground border-b">
+            <div className="grid grid-cols-9 gap-4 p-4 bg-muted/50 text-sm font-medium text-muted-foreground border-b">
               <div className="col-span-2">Descrição</div>
               <div className="col-span-1">Contato</div>
               <div className="col-span-1">Categoria</div>
@@ -747,7 +778,6 @@ const Recorrentes = () => {
               <div className="col-span-1">Valor</div>
               <div className="col-span-1">Status</div>
               <div className="col-span-1">Próxima Data</div>
-              <div className="col-span-1"></div>
             </div>
             
             {isLoading ? (
@@ -763,12 +793,12 @@ const Recorrentes = () => {
               filteredRecurrences.map((recurrence) => (
                 <div 
                   key={recurrence.id} 
-                  className="grid grid-cols-10 gap-4 p-4 border-b border-border hover:bg-muted/30 transition-colors items-center text-sm"
+                  className="grid grid-cols-9 gap-4 p-4 border-b border-border hover:bg-muted/30 transition-colors items-center text-sm"
                 >
                   <div className="col-span-2 font-medium">
                     {recurrence.descricao}
                   </div>
-                  <div className="col-span-1">
+                  <div className="col-span-1 truncate">
                     {recurrence.contato_nome}
                   </div>
                   <div className="col-span-1">
@@ -798,13 +828,11 @@ const Recorrentes = () => {
                       onCheckedChange={() => handleToggleActive(recurrence)}
                     />
                   </div>
-                  <div className="col-span-1">
-                    {recurrence.proxima_data ? format(new Date(recurrence.proxima_data), 'dd/MM/yyyy') : '-'}
-                  </div>
-                  <div className="col-span-1 flex justify-end">
+                  <div className="col-span-1 flex justify-between items-center">
+                    <span>{recurrence.proxima_data ? format(new Date(recurrence.proxima_data), 'dd/MM/yyyy') : '-'}</span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 ml-2">
                           <MoreVertical className="h-4 w-4" />
                           <span className="sr-only">Abrir menu</span>
                         </Button>

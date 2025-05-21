@@ -75,21 +75,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
   // Generates the table headers based on the transaction type filter
   const renderTableHeaders = () => {
-    // Default headers for all transaction types
-    if (filters.tipo === 'all') {
-      return (
-        <>
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">{filters.tipo === 'Receita' ? 'Recebido de' : 'Pago a'}</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </>
-      );
-    }
-    
     // Headers for Receita transactions
     if (filters.tipo === 'Receita') {
       return (
@@ -106,11 +91,26 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     }
     
     // Headers for Despesa transactions
+    if (filters.tipo === 'Despesa') {
+      return (
+        <>
+          <div className="col-span-1">Data</div>
+          <div className="col-span-3">Descrição</div>
+          <div className="col-span-2">Pago a</div>
+          <div className="col-span-2">Categoria</div>
+          <div className="col-span-2 text-right">Valor</div>
+          <div className="col-span-1 text-center">Status</div>
+          <div className="col-span-1"></div>
+        </>
+      );
+    }
+    
+    // Default headers for all transaction types
     return (
       <>
         <div className="col-span-1">Data</div>
         <div className="col-span-3">Descrição</div>
-        <div className="col-span-2">Pago a</div>
+        <div className="col-span-2">Contato</div>
         <div className="col-span-2">Categoria</div>
         <div className="col-span-2 text-right">Valor</div>
         <div className="col-span-1 text-center">Status</div>

@@ -1,3 +1,4 @@
+
 // src/services/api.ts
 
 const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
@@ -72,7 +73,7 @@ export const centrosAPI = {
     });
     return handleResponse(res);
   },
-  save: async (centro: { id?: string; nome: string }) => {
+  save: async (centro: { id?: string; nome: string; descricao?: string }) => {
     const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -155,4 +156,17 @@ export const authAPI = {
   }
 };
 
+// --- USER PROFILE ---
+export const userAPI = {
+  updateProfile: async (data: any) => {
+    const res = await fetch(`${API_BASE_URL}/atualizar-perfil.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  }
+};
+
 export const costCentersAPI = centrosAPI;
+export const recurrencesAPI = recurringAPI;

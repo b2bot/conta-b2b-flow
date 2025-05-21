@@ -3,16 +3,9 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, 
-  ChevronRight, 
+  Download, 
   Plus, 
-  Filter,
-  ChevronDown,
-  Check,
-  X,
-  Download,
-  Upload,
-  MoreVertical
+  MoreVertical 
 } from 'lucide-react';
 import {
   Dialog,
@@ -20,37 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths, parse } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Checkbox } from '@/components/ui/checkbox';
-import { costCentersAPI } from '@/services/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@/components/ui/skeleton';
-import { exportToExcel } from '@/utils/fileUtils';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { costCentersAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { exportToExcel } from '@/utils/fileUtils';
 
 // Define cost center type
 interface CostCenter {
@@ -92,7 +69,7 @@ const CentroCustos = () => {
 
   // Create/update cost center mutation
   const saveCostCenterMutation = useMutation({
-    mutationFn: (costCenter: any) => costCentersAPI.save(costCenter),
+    mutationFn: (costCenter: CostCenterForm & { id?: string }) => costCentersAPI.save(costCenter),
     onSuccess: (data) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['costCenters'] });
@@ -109,10 +86,10 @@ const CentroCustos = () => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao salvar centro de custo",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -132,10 +109,10 @@ const CentroCustos = () => {
         title: "Centro de custo excluído com sucesso",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao excluir centro de custo",
-        description: String(error),
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -239,7 +216,7 @@ const CentroCustos = () => {
   // Render error state
   const renderErrorState = () => (
     <div className="p-8 text-center">
-      <X className="mx-auto h-12 w-12 text-red-500" />
+      <div className="mx-auto h-12 w-12 text-red-500">X</div>
       <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar centros de custo</h3>
       <p className="mt-1 text-sm text-gray-500">
         Não foi possível carregar a lista de centros de custo. Tente novamente mais tarde.
@@ -278,6 +255,9 @@ const CentroCustos = () => {
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>{editingCostCenter ? 'Editar Centro de Custo' : 'Novo Centro de Custo'}</DialogTitle>
+                <DialogDescription>
+                  {editingCostCenter ? 'Edite as informações do centro de custo.' : 'Preencha as informações para criar um novo centro de custo.'}
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -293,7 +273,7 @@ const CentroCustos = () => {
                   <Label htmlFor="description">Descrição</Label>
                   <Input
                     id="description"
-                    value={newCostCenter.descricao || ''}
+                    value={newCostCenter.descricao}
                     onChange={(e) => setNewCostCenter({ ...newCostCenter, descricao: e.target.value })}
                     placeholder="Ex: Despesas administrativas gerais"
                   />
