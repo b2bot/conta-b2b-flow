@@ -11,6 +11,13 @@ import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle } from 'lucide-react';
 
+interface User {
+  email: string;
+  nome_completo: string;
+  empresa: string;
+  telefone: string;
+}
+
 interface ProfileForm {
   email: string;
   nome_completo: string;
@@ -19,7 +26,7 @@ interface ProfileForm {
 }
 
 const Perfil = () => {
-  const { user, setUser } = useAuth();
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   
@@ -49,7 +56,7 @@ const Perfil = () => {
         
         // Atualiza o contexto de autenticação com os novos dados
         if (user) {
-          setUser({
+          updateUser({
             ...user,
             ...data,
           });
