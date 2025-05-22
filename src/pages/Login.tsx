@@ -14,7 +14,7 @@ const Login = () => {
   const { toast } = useToast();
   const { login, isAuthenticated, isLoading } = useAuth();
 
-  // If already authenticated, redirect to dashboard
+  // Redireciona se já estiver autenticado
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard');
@@ -23,7 +23,7 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Campos obrigatórios",
@@ -32,17 +32,16 @@ const Login = () => {
       });
       return;
     }
-    
+
     try {
       console.log('Submitting login form with email:', email);
-      // Attempt login via AuthContext
       await login(email, password);
-      // The redirection happens in the login function
-    } catch (error) {
+      // O redirecionamento deve ocorrer dentro do AuthContext após o login bem-sucedido
+    } catch (error: any) {
       console.error('Login submission error:', error);
       toast({
         title: "Erro de autenticação",
-        description: "Ocorreu um erro ao tentar fazer login",
+        description: error?.message || "Ocorreu um erro ao tentar fazer login",
         variant: "destructive",
       });
     }
@@ -81,7 +80,7 @@ const Login = () => {
                   className="border-gray-300"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="password" className="text-sm font-medium text-purple-dark">
@@ -99,7 +98,7 @@ const Login = () => {
                 />
               </div>
             </CardContent>
-            
+
             <CardFooter>
               <Button 
                 type="submit"

@@ -1,8 +1,5 @@
-// This is a minimal update to add the updateUser method to the AuthContext
-// Only adding the parts needed for this fix
-
 import * as React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
 interface User {
@@ -16,23 +13,20 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   loading: boolean;
-  updateUser: (user: User) => void;  // Add this new method
+  updateUser: (user: User) => void;
 }
 
-// Create the auth context
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
-// Create a provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if user is already logged in
   React.useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -47,16 +41,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  // Add this function to update user details
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
-  const signIn = async (email: string, password: string) => {
+  // AQUI: Corrigido o nome do campo!
+  const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const response = await authAPI.login({ email, password });
+      // MUDE ESTA LINHA:
+      // await authAPI.login({ email, password });  // ERRADO
+      const response = await authAPI.login({ email, senha: password }); // CERTO
+
       if (response.status === 'success') {
         const userData: User = {
           id: response.id,
@@ -68,18 +65,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
-        
-        // Redirect to the previous page or to the dashboard
-        const origin = location.state?.from?.pathname || '/';
+        const origin = location.state?.from?.pathname || '/dashboard';
         navigate(origin, { replace: true });
       } else {
-        // Handle login error (show message)
         console.error('Login failed:', response.message);
-        // You can show an error message using a toast or other UI element
       }
     } catch (error) {
       console.error('Login error:', error);
-      // Handle unexpected errors
     } finally {
       setLoading(false);
     }
@@ -93,10 +85,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const contextValue: AuthContextType = {
     user,
-    signIn,
+    login,
     signOut,
     loading,
-    updateUser, // Add the new method to the context
+    updateUser,
   };
 
   return (
@@ -106,7 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Create a hook to use the auth context
 export const useAuth = (): AuthContextType => {
   const context = React.useContext(AuthContext);
   if (context === undefined) {
@@ -115,7 +106,6 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// A wrapper for components that require authentication.
 interface RequireAuthProps {
   children: React.ReactNode;
 }
@@ -129,11 +119,11 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   }
 
   if (!auth.user) {
-    // Redirect to the login page
-    return <React.Fragment>
-      {/* Show a message or redirect */}
-      <Navigate to="/login" state={{ from: location }} replace />
-    </React.Fragment>;
+    return (
+      <React.Fragment>
+        <Navigate to="/login" state={{ from: location }} replace />
+      </React.Fragment>
+    );
   }
 
   return <React.Fragment>{children}</React.Fragment>;

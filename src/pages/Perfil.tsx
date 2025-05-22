@@ -1,16 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { userAPI } from '@/services/api';
+import { authAPI } from '@/services/api'; // <-- AJUSTE AQUI!
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle, Upload, Eye, EyeOff } from 'lucide-react';
 
-// Define proper User type to match what's expected
 interface User {
   id?: string;
   email: string;
@@ -30,14 +28,14 @@ interface ProfileForm {
 }
 
 const Perfil = () => {
-  const { user, updateUser } = useAuth(); // Using updateUser instead of setUser
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState<ProfileForm>({
     email: '',
     nome_completo: '',
@@ -47,7 +45,6 @@ const Perfil = () => {
     confirmacao_senha: '',
   });
 
-  // Initialize form with user data
   useEffect(() => {
     if (user) {
       setFormData({
@@ -73,8 +70,6 @@ const Perfil = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setAvatarFile(file);
-      
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarPreview(reader.result as string);
@@ -92,7 +87,6 @@ const Perfil = () => {
   const onSubmit = async () => {
     setLoading(true);
     try {
-      // Validate password confirmation if password is provided
       if (formData.senha && formData.senha !== formData.confirmacao_senha) {
         toast({
           variant: 'destructive',
@@ -102,37 +96,25 @@ const Perfil = () => {
         setLoading(false);
         return;
       }
-
-      // Remove confirmacao_senha from data to be sent to API
       const { confirmacao_senha, ...submitData } = formData;
-      
-      // Only include senha if it's not empty
       if (!submitData.senha) {
         delete submitData.senha;
       }
-
-      const response = await userAPI.updateProfile(submitData);
-      
+      // Aqui usa o novo authAPI
+      const response = await authAPI.update(submitData);
       if (response.status === 'success') {
         toast({
           title: 'Sucesso!',
           description: 'Perfil atualizado com sucesso.',
         });
-        
-        // Atualiza o contexto de autenticação com os novos dados
         if (user && updateUser) {
           updateUser({
             ...user,
             ...submitData,
           });
         }
-
-        // If there's an avatar file, we would upload it here
-        // This is a placeholder for when you implement avatar upload API
         if (avatarFile) {
-          console.log('Avatar file would be uploaded here:', avatarFile);
-          // Implement avatar upload here when the API endpoint is available
-          // For now, we'll just acknowledge it visually with the preview
+          // upload do avatar (implementação futura)
         }
       } else {
         toast({
@@ -168,7 +150,6 @@ const Perfil = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Meu Perfil</h1>
       </div>
-      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <Card>
@@ -197,7 +178,6 @@ const Perfil = () => {
             </CardContent>
           </Card>
         </div>
-        
         <div className="md:col-span-2">
           <Card>
             <CardHeader>
@@ -214,7 +194,6 @@ const Perfil = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="email">E-mail</Label>
                     <Input
@@ -225,7 +204,6 @@ const Perfil = () => {
                     />
                   </div>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="empresa">Empresa</Label>
@@ -235,7 +213,6 @@ const Perfil = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="telefone">Telefone</Label>
                     <Input
@@ -245,7 +222,6 @@ const Perfil = () => {
                     />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                   <div className="space-y-2">
                     <Label htmlFor="senha">Nova Senha</Label>
@@ -266,7 +242,6 @@ const Perfil = () => {
                       </button>
                     </div>
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="confirmacao_senha">Confirmar Senha</Label>
                     <div className="relative">
@@ -280,7 +255,6 @@ const Perfil = () => {
                     </div>
                   </div>
                 </div>
-                
                 <div className="flex justify-end pt-4">
                   <Button 
                     type="button" 

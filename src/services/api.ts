@@ -1,4 +1,3 @@
-
 // src/services/api.ts
 
 const API_BASE_URL = 'https://sistema.vksistemas.com.br/api';
@@ -11,13 +10,10 @@ const handleResponse = async (res: Response) => {
 
 // Função utilitária para headers com Authorization
 function getAuthHeaders() {
-  // Busca o token dentro do objeto user salvo no localStorage
   let token = null;
   try {
     const user = localStorage.getItem('user');
-    if (user) {
-      token = JSON.parse(user).token;
-    }
+    if (user) token = JSON.parse(user).token;
   } catch (e) {
     token = null;
   }
@@ -25,6 +21,59 @@ function getAuthHeaders() {
     ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
     : { 'Content-Type': 'application/json' };
 }
+
+// --- AUTENTICAÇÃO ---
+export const authAPI = {
+  user: async () => {
+    const res = await fetch(`${API_BASE_URL}/user.php`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
+  },
+  update: async (data: any) => {
+    const res = await fetch(`${API_BASE_URL}/atualizar-perfil.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+  login: async (data: { email: string; senha: string }) => {
+    const res = await fetch(`${API_BASE_URL}/login.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+  logout: async () => {
+    const res = await fetch(`${API_BASE_URL}/logout.php`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
+  }
+};
+
+// --- CENTRO DE CUSTO ---
+export const costCentersAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-centro-custos.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+  save: async (centro: { id?: string; nome: string; descricao?: string }) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(centro),
+    });
+    return handleResponse(res);
+  }
+};
 
 // --- CATEGORIAS ---
 export const categoriesAPI = {
@@ -64,25 +113,6 @@ export const contactsAPI = {
   }
 };
 
-// --- CENTRO DE CUSTO ---
-export const centrosAPI = {
-  list: async () => {
-    const res = await fetch(`${API_BASE_URL}/listar-centro-custos.php`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(res);
-  },
-  save: async (centro: { id?: string; nome: string; descricao?: string }) => {
-    const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(centro),
-    });
-    return handleResponse(res);
-  }
-};
-
 // --- TRANSAÇÕES ---
 export const transactionsAPI = {
   list: async () => {
@@ -103,7 +133,7 @@ export const transactionsAPI = {
 };
 
 // --- RECORRÊNCIAS ---
-export const recurringAPI = {
+export const recurrencesAPI = {
   list: async () => {
     const res = await fetch(`${API_BASE_URL}/listar-recorrencias.php`, {
       method: 'POST',
@@ -121,52 +151,4 @@ export const recurringAPI = {
   }
 };
 
-// --- AUTENTICAÇÃO ---
-export const authAPI = {
-  user: async () => {
-    const res = await fetch(`${API_BASE_URL}/user.php`, {
-      method: 'POST',
-      headers: getAuthHeaders() // <-- Token vai aqui!
-    });
-    return handleResponse(res);
-  },
-  update: async (data: any) => {
-    const res = await fetch(`${API_BASE_URL}/atualizar-perfil.php`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-    return handleResponse(res);
-  },
-  login: async (data: any) => {
-    // O login normalmente NÃO envia o token, só o JSON comum!
-    const res = await fetch(`${API_BASE_URL}/login.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    return handleResponse(res);
-  },
-  logout: async () => {
-    const res = await fetch(`${API_BASE_URL}/logout.php`, {
-      method: 'POST',
-      headers: getAuthHeaders()
-    });
-    return handleResponse(res);
-  }
-};
-
-// --- USER PROFILE ---
-export const userAPI = {
-  updateProfile: async (data: any) => {
-    const res = await fetch(`${API_BASE_URL}/atualizar-perfil.php`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-    return handleResponse(res);
-  }
-};
-
-export const costCentersAPI = centrosAPI;
-export const recurrencesAPI = recurringAPI;
+export { /* named exports para manter padrão nos imports */ };
