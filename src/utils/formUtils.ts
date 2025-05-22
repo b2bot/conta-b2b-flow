@@ -38,31 +38,3 @@ export const parseCurrencyInput = (value: string): number => {
   const parsedValue = parseFloat(normalizedValue);
   return isNaN(parsedValue) ? 0 : parsedValue;
 };
-
-/**
- * Format CPF/CNPJ for display
- * @param value - CPF or CNPJ string
- * @returns Formatted CPF/CNPJ string
- */
-export const formatCpfCnpj = (value: string | undefined): string => {
-  if (!value) return '';
-  
-  // Remove non-numeric characters
-  const numericValue = value.replace(/\D/g, '');
-  
-  // Format as CPF (xxx.xxx.xxx-xx)
-  if (numericValue.length <= 11) {
-    return numericValue
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  } 
-  // Format as CNPJ (xx.xxx.xxx/xxxx-xx)
-  else {
-    return numericValue
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d)/, '$1-$2');
-  }
-};
