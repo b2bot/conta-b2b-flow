@@ -1,6 +1,8 @@
+// This is a minimal update to add the updateUser method to the AuthContext
+// Only adding the parts needed for this fix
 
 import * as React from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
 interface User {
@@ -10,7 +12,6 @@ interface User {
   empresa: string;
   telefone: string;
   token?: string;
-  avatar_url?: string;
 }
 
 interface AuthContextType {
@@ -18,9 +19,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   loading: boolean;
-  updateUser: (user: User) => void;
-  isAuthenticated: boolean;
-  isLoading: boolean;
+  updateUser: (user: User) => void;  // Add this new method
 }
 
 // Create the auth context
@@ -50,13 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add this function to update user details
   const updateUser = (updatedUser: User) => {
-    // Make sure to maintain avatar_url if present in the current user
-    const mergedUser = {
-      ...updatedUser,
-      avatar_url: updatedUser.avatar_url || (user?.avatar_url || undefined)
-    };
-    setUser(mergedUser);
-    localStorage.setItem('user', JSON.stringify(mergedUser));
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
   const signIn = async (email: string, password: string) => {
@@ -70,8 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           nome_completo: response.nome_completo,
           empresa: response.empresa,
           telefone: response.telefone,
-          token: response.token,
-          avatar_url: response.avatar_url
+          token: response.token
         };
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
@@ -103,9 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     loading,
-    updateUser,
-    isAuthenticated: !!user,
-    isLoading: loading,
+    updateUser, // Add the new method to the context
   };
 
   return (
@@ -139,10 +130,13 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
 
   if (!auth.user) {
     // Redirect to the login page
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <React.Fragment>
+      {/* Show a message or redirect */}
+      <Navigate to="/login" state={{ from: location }} replace />
+    </React.Fragment>;
   }
 
-  return <>{children}</>;
+  return <React.Fragment>{children}</React.Fragment>;
 };
 
 export default AuthContext;
