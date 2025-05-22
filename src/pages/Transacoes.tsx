@@ -57,6 +57,8 @@ interface Transaction {
   detalhes?: string;
   status?: string;
   categoria_id: string;
+  contato_nome: string;
+  contato_id?: string;
 }
 
 // Define new transaction form
@@ -109,12 +111,13 @@ const Transacoes = () => {
     queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       const response = await transactionsAPI.list();
+      console.log('Fetched transactions:', response);
       return response.status === 'success' ? response.transacoes : [];
     }
   });
 
   // Fetch categories for dropdown
-  const { data: categoriesData = [] } = useQuery({
+  const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await categoriesAPI.list();
@@ -123,7 +126,7 @@ const Transacoes = () => {
   });
 
   // Fetch contacts for dropdown
-  const { data: contactsData = [] } = useQuery({
+  const { data: contacts = [] } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       const response = await contactsAPI.list();
@@ -131,9 +134,38 @@ const Transacoes = () => {
     }
   });
 
+  // Save transaction mutation
+  const saveTransactionMutation = useMutation({
+    mutationFn: async (transaction: any) => {
+      console.log('Saving transaction:', transaction);
+      return await transactionsAPI.save(transaction);
+    },
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast({
+          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
+        });
+        setDialogOpen(false);
+        resetTransactionForm();
+      } else {
+        toast({
+          title: "Erro ao salvar transação",
+          description: data.message || "Ocorreu um erro ao salvar a transação",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar transação",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const transactions = transactionsData || [];
-  const categories = categoriesData || [];
-  const contacts = contactsData || [];
 
   const nextMonth = () => {
     setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
@@ -191,67 +223,21 @@ const Transacoes = () => {
     setIsEditing(false);
   };
 
-  const filteredTransactions = transactions.filter(transaction => {
-    // Filter by month/year
-    const transactionDate = new Date(transaction.data);
-    if (
-      transactionDate.getMonth() !== currentMonth.getMonth() ||
-      transactionDate.getFullYear() !== currentMonth.getFullYear()
-    ) {
-      return false;
-    }
-
-    // Apply other filters
-    if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
-    if (filters.paid !== 'all') {
-      if (filters.paid === 'paid' && !transaction.paid) return false;
-      if (filters.paid === 'pending' && transaction.paid) return false;
-    }
-    if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-    if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
-
-    return true;
-  });
-
-  // Create/update transaction mutation
-  const saveTransactionMutation = useMutation({
-    mutationFn: (transaction: any) => transactionsAPI.save(transaction),
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast({
-          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
-        });
-        setDialogOpen(false);
-        resetTransactionForm();
-      } else {
-        toast({
-          title: "Erro ao salvar transação",
-          description: data.message || "Ocorreu um erro ao salvar a transação",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao salvar transação",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Toggle transaction paid status mutation
   const togglePaidStatusMutation = useMutation({
     mutationFn: (transaction: Transaction) => {
-      return transactionsAPI.save({
+      const updatedTransaction = {
         ...transaction,
         paid: !transaction.paid
-      });
+      };
+      console.log('Toggling paid status:', updatedTransaction);
+      return transactionsAPI.save(updatedTransaction);
     },
     onSuccess: (data) => {
+      console.log('Toggle paid status response:', data);
       if (data.status === 'success') {
+        // Force refetch the data to update the UI
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        
         toast({
           title: "Status atualizado com sucesso",
         });
@@ -272,19 +258,24 @@ const Transacoes = () => {
     }
   });
 
-  // Delete transaction mutation
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
       // This is a placeholder - actual implementation would call the delete API
       // return await transactionsAPI.delete(id);
       // For now we'll simulate a successful delete
-      return { status: 'success' };
+      return { status: 'success', id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast({
-        title: "Transação excluída com sucesso",
-      });
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        // Update local state to remove the deleted item
+        const currentData = queryClient.getQueryData<Transaction[]>(['transactions']) || [];
+        const updatedData = currentData.filter(item => item.id !== data.id);
+        queryClient.setQueryData(['transactions'], updatedData);
+        
+        toast({
+          title: "Transação excluída com sucesso",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -318,19 +309,21 @@ const Transacoes = () => {
 
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
 
+    // Ensure contato_id is included in the saved transaction for proper contact display
     const transactionToSave = {
       ...(isEditing && newTransaction.id ? { id: newTransaction.id } : {}),
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
-      paymentTo: newTransaction.paymentTo,
+      contato_id: newTransaction.paymentTo, // Make sure contato_id is saved
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
       recurrence: newTransaction.recurrence,
-      detalhes: newTransaction.detalhes
+      detalhes: newTransaction.detalhes || ""
     };
 
+    console.log('Saving transaction:', transactionToSave);
     saveTransactionMutation.mutate(transactionToSave);
   };
 
@@ -362,9 +355,9 @@ const Transacoes = () => {
       data: transactionDate,
       tipo: transaction.tipo,
       categoria_id: transaction.categoria_id,
-      paymentTo: transaction.paymentTo,
+      paymentTo: transaction.contato_id || '',
       paid: transaction.paid,
-      recurrence: transaction.recurrence,
+      recurrence: transaction.recurrence || 'none',
       detalhes: transaction.detalhes || ''
     });
     
@@ -379,6 +372,44 @@ const Transacoes = () => {
   useEffect(() => {
     refetch();
   }, [filters, refetch]);
+
+  const filteredTransactionsNoDuplicates = React.useMemo(() => {
+    // First apply the filters
+    const filtered = transactions.filter(transaction => {
+      // Filter by month/year
+      const transactionDate = new Date(transaction.data);
+      if (
+        transactionDate.getMonth() !== currentMonth.getMonth() ||
+        transactionDate.getFullYear() !== currentMonth.getFullYear()
+      ) {
+        return false;
+      }
+
+      // Apply other filters
+      if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
+      if (filters.paid !== 'all') {
+        if (filters.paid === 'paid' && !transaction.paid) return false;
+        if (filters.paid === 'pending' && transaction.paid) return false;
+      }
+      if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
+      if (filters.contact !== 'all' && transaction.contato_nome !== filters.contact) return false;
+
+      return true;
+    });
+
+    // Now remove duplicates using transaction id
+    const uniqueTransactions = [];
+    const seenIds = new Set();
+    
+    for (const transaction of filtered) {
+      if (!seenIds.has(transaction.id)) {
+        seenIds.add(transaction.id);
+        uniqueTransactions.push(transaction);
+      }
+    }
+    
+    return uniqueTransactions;
+  }, [transactions, currentMonth, filters]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -486,7 +517,6 @@ const Transacoes = () => {
                         onSelect={(date) => date && setNewTransaction({ ...newTransaction, data: date })}
                         initialFocus
                         locale={ptBR}
-                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
@@ -677,7 +707,7 @@ const Transacoes = () => {
       
       <TransactionTable
         isLoading={isLoading}
-        filteredTransactions={filteredTransactions}
+        filteredTransactions={filteredTransactionsNoDuplicates}
         filters={filters}
         expandedTransaction={expandedTransaction}
         toggleExpandTransaction={toggleExpandTransaction}
