@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,6 +57,7 @@ interface Transaction {
   detalhes?: string;
   status?: string;
   categoria_id: string;
+  contato_nome: string;
 }
 
 // Define new transaction form
@@ -192,67 +192,33 @@ const Transacoes = () => {
     setIsEditing(false);
   };
 
-  const filteredTransactions = transactions.filter(transaction => {
-    // Filter by month/year
-    const transactionDate = new Date(transaction.data);
-    if (
-      transactionDate.getMonth() !== currentMonth.getMonth() ||
-      transactionDate.getFullYear() !== currentMonth.getFullYear()
-    ) {
-      return false;
-    }
-
-    // Apply other filters
-    if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
-    if (filters.paid !== 'all') {
-      if (filters.paid === 'paid' && !transaction.paid) return false;
-      if (filters.paid === 'pending' && transaction.paid) return false;
-    }
-    if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-    if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
-
-    return true;
-  });
-
-  // Create/update transaction mutation
-  const saveTransactionMutation = useMutation({
-    mutationFn: (transaction: any) => transactionsAPI.save(transaction),
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast({
-          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
-        });
-        setDialogOpen(false);
-        resetTransactionForm();
-      } else {
-        toast({
-          title: "Erro ao salvar transação",
-          description: data.message || "Ocorreu um erro ao salvar a transação",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao salvar transação",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Toggle transaction paid status mutation
   const togglePaidStatusMutation = useMutation({
     mutationFn: (transaction: Transaction) => {
-      return transactionsAPI.save({
+      const updatedTransaction = {
         ...transaction,
         paid: !transaction.paid
-      });
+      };
+      console.log('Toggling paid status:', updatedTransaction);
+      return transactionsAPI.save(updatedTransaction);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
+        // Invalidate the query to refetch and update the UI
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        
+        // Also update the transaction in the local state immediately
+        const transactionId = data.id;
+        const currentData = queryClient.getQueryData(['transactions']) as Transaction[];
+        if (currentData) {
+          const updatedData = currentData.map(t => {
+            if (t.id === transactionId) {
+              return { ...t, paid: !t.paid };
+            }
+            return t;
+          });
+          queryClient.setQueryData(['transactions'], updatedData);
+        }
+        
         toast({
           title: "Status atualizado com sucesso",
         });
@@ -273,7 +239,6 @@ const Transacoes = () => {
     }
   });
 
-  // Delete transaction mutation
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
       // This is a placeholder - actual implementation would call the delete API
@@ -319,12 +284,13 @@ const Transacoes = () => {
 
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
 
+    // Ensure contato_id is included in the saved transaction for proper contact display
     const transactionToSave = {
       ...(isEditing && newTransaction.id ? { id: newTransaction.id } : {}),
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
-      paymentTo: newTransaction.paymentTo,
+      contato_id: newTransaction.paymentTo, // Make sure contato_id is saved
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
@@ -332,6 +298,7 @@ const Transacoes = () => {
       detalhes: newTransaction.detalhes
     };
 
+    console.log('Saving transaction:', transactionToSave);
     saveTransactionMutation.mutate(transactionToSave);
   };
 
@@ -380,6 +347,44 @@ const Transacoes = () => {
   useEffect(() => {
     refetch();
   }, [filters, refetch]);
+
+  const filteredTransactionsNoDuplicates = React.useMemo(() => {
+    // First apply the filters
+    const filtered = transactions.filter(transaction => {
+      // Filter by month/year
+      const transactionDate = new Date(transaction.data);
+      if (
+        transactionDate.getMonth() !== currentMonth.getMonth() ||
+        transactionDate.getFullYear() !== currentMonth.getFullYear()
+      ) {
+        return false;
+      }
+
+      // Apply other filters
+      if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
+      if (filters.paid !== 'all') {
+        if (filters.paid === 'paid' && !transaction.paid) return false;
+        if (filters.paid === 'pending' && transaction.paid) return false;
+      }
+      if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
+      if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
+
+      return true;
+    });
+
+    // Now remove duplicates using transaction id
+    const uniqueTransactions = [];
+    const seenIds = new Set();
+    
+    for (const transaction of filtered) {
+      if (!seenIds.has(transaction.id)) {
+        seenIds.add(transaction.id);
+        uniqueTransactions.push(transaction);
+      }
+    }
+    
+    return uniqueTransactions;
+  }, [transactions, currentMonth, filters]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -678,7 +683,7 @@ const Transacoes = () => {
       
       <TransactionTable
         isLoading={isLoading}
-        filteredTransactions={filteredTransactions}
+        filteredTransactions={filteredTransactionsNoDuplicates}
         filters={filters}
         expandedTransaction={expandedTransaction}
         toggleExpandTransaction={toggleExpandTransaction}

@@ -2,7 +2,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker, SelectSingleEventHandler } from "react-day-picker";
-import { format, parse } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Input } from "./input";
 
@@ -45,7 +45,7 @@ function Calendar({
         const parsedDate = parse(value, "dd/MM/yyyy", new Date());
         
         // Check if it's a valid date
-        if (!isNaN(parsedDate.getTime())) {
+        if (isValid(parsedDate)) {
           if (props.mode === "single" && props.onSelect) {
             (props.onSelect as SelectSingleEventHandler)(parsedDate);
           }
@@ -113,7 +113,6 @@ function Calendar({
           IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
           IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
         }}
-        selected={selected}
         locale={ptBR}
         {...props}
       />

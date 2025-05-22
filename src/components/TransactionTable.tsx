@@ -1,26 +1,32 @@
 
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Check, 
+  Loader, 
+  X, 
+  ChevronDown, 
+  ChevronUp, 
+  MoreVertical 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Check, X, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Define transaction type
 interface Transaction {
   id: string;
   data: string;
   descricao: string;
-  paymentTo: string;
+  paymentTo?: string;  // Made optional to fix type error
+  contato_nome?: string; // Added contato_nome field
   categoria_nome: string;
   valor: number;
   tipo: 'Despesa' | 'Receita';
@@ -31,7 +37,6 @@ interface Transaction {
   categoria_id: string;
 }
 
-// Define props for the component
 interface TransactionTableProps {
   isLoading: boolean;
   filteredTransactions: Transaction[];
@@ -48,7 +53,7 @@ interface TransactionTableProps {
   handleDeleteTransaction: (id: string) => void;
 }
 
-const TransactionTable: React.FC<TransactionTableProps> = ({
+const TransactionTable = ({
   isLoading,
   filteredTransactions,
   filters,
@@ -57,8 +62,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   toggleTransactionPaid,
   handleEditTransaction,
   handleDeleteTransaction,
-}) => {
-  // Format currency value
+}: TransactionTableProps) => {
+  // Format currency for display
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', {
       style: 'currency',
@@ -66,61 +71,28 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     });
   };
 
-  // Format date
+  // Format date for display
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString);
-      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+      return format(new Date(dateString), 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
-      return dateString;
+      console.error('Invalid date:', dateString);
+      return 'Data inválida';
     }
   };
-
-  // Render table header based on transaction type
-  const renderTableHeader = () => {
-    // If we're filtering for Receipts specifically
-    if (filters.tipo === 'Receita') {
-      return (
-        <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">Recebido de</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </div>
-      );
-    }
+  
+  // Get status badge based on transaction type and payment status
+  const getStatusBadge = (transaction: Transaction) => {
+    const { tipo, paid } = transaction;
     
-    // If we're filtering for Expenses specifically
-    else if (filters.tipo === 'Despesa') {
-      return (
-        <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">Pago a</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </div>
-      );
-    }
-    
-    // Default for mixed view
-    else {
-      return (
-        <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
-          <div className="col-span-1">Data</div>
-          <div className="col-span-3">Descrição</div>
-          <div className="col-span-2">Contato</div>
-          <div className="col-span-2">Categoria</div>
-          <div className="col-span-2 text-right">Valor</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-1"></div>
-        </div>
-      );
+    if (tipo === 'Receita') {
+      return paid ? 
+        <Badge className="bg-green-500">Recebido</Badge> :
+        <Badge className="bg-amber-500">A receber</Badge>;
+    } else {
+      return paid ? 
+        <Badge className="bg-blue-500">Pago</Badge> :
+        <Badge className="bg-red-500">A pagar</Badge>;
     }
   };
 
@@ -128,184 +100,156 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
   const renderLoadingSkeleton = () => (
     <>
       {[1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center">
+        <div key={item} className="grid grid-cols-7 gap-4 p-4 border-b border-border items-center">
           <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-3">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
           </div>
           <div className="col-span-2">
             <Skeleton className="h-4 w-full" />
           </div>
           <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
           </div>
           <div className="col-span-1">
-            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+          <div className="col-span-1">
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+          <div className="col-span-1">
+            <div className="flex justify-end">
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
           </div>
         </div>
       ))}
     </>
   );
 
-  // Get badge color based on transaction type
-  const getTransactionBadge = (transaction: Transaction) => {
-    if (transaction.tipo === 'Receita') {
-      return transaction.paid ? (
-        <Badge className="bg-green-500">Recebido</Badge>
-      ) : (
-        <Badge variant="outline" className="text-green-600 border-green-600">
-          A receber
-        </Badge>
-      );
-    } else {
-      return transaction.paid ? (
-        <Badge className="bg-red-500">Pago</Badge>
-      ) : (
-        <Badge variant="outline" className="text-red-600 border-red-600">
-          A pagar
-        </Badge>
-      );
-    }
-  };
-
-  // Get action text based on transaction type
-  const getActionText = (transaction: Transaction) => {
-    return transaction.tipo === 'Receita'
-      ? transaction.paid
-        ? 'Marcar como não recebido'
-        : 'Marcar como recebido'
-      : transaction.paid
-        ? 'Marcar como não pago'
-        : 'Marcar como pago';
-  };
-
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="border rounded-md">
-          {renderTableHeader()}
-
-          {isLoading ? (
-            renderLoadingSkeleton()
-          ) : filteredTransactions.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-muted-foreground">
-                Nenhuma transação encontrada para este período.
-              </p>
-            </div>
-          ) : (
-            filteredTransactions.map((transaction) => (
-              <React.Fragment key={transaction.id}>
-                <div
-                  className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+    <div className="border rounded-md bg-white">
+      <div className="grid grid-cols-7 gap-4 p-4 bg-muted/50 font-medium">
+        <div className="col-span-1">Data</div>
+        <div className="col-span-2">Descrição</div>
+        <div className="col-span-1">Contato</div>
+        <div className="col-span-1">Valor</div>
+        <div className="col-span-1">Status</div>
+        <div className="col-span-1"></div>
+      </div>
+      
+      {isLoading ? (
+        renderLoadingSkeleton()
+      ) : filteredTransactions.length === 0 ? (
+        <div className="p-8 text-center">
+          <h3 className="text-lg font-medium text-gray-900">Nenhuma transação encontrada</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Não há transações com os filtros aplicados.
+          </p>
+        </div>
+      ) : (
+        filteredTransactions.map((transaction) => (
+          <React.Fragment key={transaction.id}>
+            <div 
+              className="grid grid-cols-7 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+            >
+              <div className="col-span-1 text-sm">
+                {formatDate(transaction.data)}
+              </div>
+              <div className="col-span-2 font-medium">
+                <button 
+                  onClick={() => toggleExpandTransaction(transaction.id)}
+                  className="flex items-center gap-1 hover:text-purple"
                 >
-                  <div className="col-span-1 text-sm">
-                    {formatDate(transaction.data)}
-                  </div>
-                  <div className="col-span-3 font-medium">
-                    {transaction.descricao}
-                  </div>
-                  <div className="col-span-2 text-muted-foreground">
-                    {transaction.paymentTo}
-                  </div>
-                  <div className="col-span-2 text-muted-foreground">
-                    {transaction.categoria_nome}
-                  </div>
-                  <div
-                    className={`col-span-2 font-medium text-right ${
-                      transaction.tipo === 'Receita'
-                        ? 'text-green-600'
-                        : 'text-red-600'
-                    }`}
-                  >
-                    {formatCurrency(transaction.valor)}
-                  </div>
-                  <div className="col-span-1 text-center">
-                    <div className="flex justify-center">
-                      {getTransactionBadge(transaction)}
+                  {transaction.descricao}
+                  {expandedTransaction === transaction.id ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              <div className="col-span-1 text-sm text-muted-foreground">
+                {transaction.contato_nome || "-"}
+              </div>
+              <div className="col-span-1">
+                <span className={transaction.tipo === 'Receita' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                  {formatCurrency(transaction.valor)}
+                </span>
+              </div>
+              <div className="col-span-1">
+                {getStatusBadge(transaction)}
+              </div>
+              <div className="col-span-1 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={transaction.paid ? 'border-green-500 text-green-600' : 'border-blue-500 text-blue-600'}
+                  onClick={() => toggleTransactionPaid(transaction)}
+                >
+                  {transaction.tipo === 'Receita' ? (
+                    transaction.paid ? <Check className="h-4 w-4" /> : 'Receber'
+                  ) : (
+                    transaction.paid ? <Check className="h-4 w-4" /> : 'Pagar'
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Abrir menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => handleDeleteTransaction(transaction.id)}
+                      className="text-red-600"
+                    >
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            
+            {expandedTransaction === transaction.id && (
+              <div className="p-4 bg-muted/20 border-b border-border">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <div className="mb-3">
+                      <span className="text-sm font-medium">Categoria:</span>
+                      <span className="ml-2 text-sm">{transaction.categoria_nome}</span>
+                    </div>
+                    <div className="mb-3">
+                      <span className="text-sm font-medium">Contato:</span>
+                      <span className="ml-2 text-sm">{transaction.contato_nome || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Recorrência:</span>
+                      <span className="ml-2 text-sm">
+                        {transaction.recurrence === 'none' ? 'Não recorrente' : 
+                         transaction.recurrence === 'monthly' ? 'Mensal' : 'Anual'}
+                      </span>
                     </div>
                   </div>
-                  <div className="col-span-1 flex justify-end items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => toggleExpandTransaction(transaction.id)}
-                    >
-                      {expandedTransaction === transaction.id ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">Expandir detalhes</span>
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Abrir menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => toggleTransactionPaid(transaction)}
-                        >
-                          {getActionText(transaction)}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleEditTransaction(transaction)}
-                        >
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() =>
-                            handleDeleteTransaction(transaction.id)
-                          }
-                          className="text-red-600"
-                        >
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <div>
+                    {transaction.detalhes && (
+                      <div className="mb-3">
+                        <span className="text-sm font-medium">Detalhes:</span>
+                        <p className="mt-1 text-sm text-muted-foreground">{transaction.detalhes}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                {expandedTransaction === transaction.id && (
-                  <div className="p-4 bg-muted/30 border-b border-border grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Detalhes:
-                      </p>
-                      <p>{transaction.detalhes || 'Sem detalhes adicionais'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Recorrência:
-                      </p>
-                      <p>
-                        {transaction.recurrence === 'monthly'
-                          ? 'Mensal'
-                          : transaction.recurrence === 'yearly'
-                            ? 'Anual'
-                            : 'Não recorrente'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </React.Fragment>
-            ))
-          )}
-        </div>
-      </CardContent>
-    </Card>
+              </div>
+            )}
+          </React.Fragment>
+        ))
+      )}
+    </div>
   );
 };
 

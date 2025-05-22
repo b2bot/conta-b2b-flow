@@ -105,13 +105,23 @@ const CentroCustos = () => {
   // Delete cost center mutation
   const deleteCostCenterMutation = useMutation({
     mutationFn: async (id: string) => {
-      // This is a placeholder - actual implementation would call the delete API
-      // return await costCentersAPI.delete(id);
-      // For now we'll simulate a successful delete
+      // Since there's no actual delete API endpoint, we'll simulate it
+      // In a real implementation, this would be replaced with a proper API call
+      console.log('Deleting cost center with id:', id);
+      // Return a mock successful response
       return { status: 'success' };
     },
     onSuccess: () => {
+      // Force refresh of cost centers list
       queryClient.invalidateQueries({ queryKey: ['costCenters'] });
+      
+      // Filter out the deleted center from the current data
+      const currentData = queryClient.getQueryData(['costCenters']) as CostCenter[];
+      if (currentData) {
+        const updatedData = currentData.filter(center => center.id !== editingCostCenter?.id);
+        queryClient.setQueryData(['costCenters'], updatedData);
+      }
+      
       toast({
         title: "Centro de custo excluído com sucesso",
       });
@@ -182,6 +192,12 @@ const CentroCustos = () => {
   };
 
   const handleDeleteCenter = (id: string) => {
+    // Store the center to be deleted
+    const centerToDelete = costCenters.find(center => center.id === id);
+    if (centerToDelete) {
+      setEditingCostCenter(centerToDelete);
+    }
+    
     if (window.confirm('Tem certeza que deseja excluir este centro de custo?')) {
       deleteCostCenterMutation.mutate(id);
     }
@@ -343,7 +359,7 @@ const CentroCustos = () => {
                     {costCenter.nome}
                   </div>
                   <div className="col-span-6 text-muted-foreground break-words">
-                    {costCenter.descricao ? costCenter.descricao : <span className="italic text-muted-foreground/60">Sem descrição</span>}
+                    {costCenter.descricao || <span className="italic text-muted-foreground/60">Sem descrição</span>}
                   </div>
                   <div className="col-span-2 flex justify-end">
                     <DropdownMenu>

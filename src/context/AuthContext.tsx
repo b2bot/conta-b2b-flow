@@ -1,8 +1,6 @@
-// This is a minimal update to add the updateUser method to the AuthContext
-// Only adding the parts needed for this fix
 
 import * as React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
 interface User {
@@ -19,7 +17,9 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   loading: boolean;
-  updateUser: (user: User) => void;  // Add this new method
+  updateUser: (user: User) => void;
+  isAuthenticated: boolean; // Added missing property
+  isLoading: boolean; // Added missing property
 }
 
 // Create the auth context
@@ -96,7 +96,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     loading,
-    updateUser, // Add the new method to the context
+    updateUser,
+    isAuthenticated: !!user, // Added computed property
+    isLoading: loading, // Added alias for loading
   };
 
   return (
@@ -130,13 +132,10 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
 
   if (!auth.user) {
     // Redirect to the login page
-    return <React.Fragment>
-      {/* Show a message or redirect */}
-      <Navigate to="/login" state={{ from: location }} replace />
-    </React.Fragment>;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <React.Fragment>{children}</React.Fragment>;
+  return <>{children}</>;
 };
 
 export default AuthContext;
