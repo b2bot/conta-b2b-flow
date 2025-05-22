@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -105,21 +104,16 @@ const CentroCustos = () => {
   // Delete cost center mutation
   const deleteCostCenterMutation = useMutation({
     mutationFn: async (id: string) => {
-      console.log('Deleting cost center with id:', id);
-      // Since there's no actual delete API endpoint, we'll simulate it
-      return { status: 'success', id };
+      // This is a placeholder - actual implementation would call the delete API
+      // return await costCentersAPI.delete(id);
+      // For now we'll simulate a successful delete
+      return { status: 'success' };
     },
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        // Update the local data to remove the deleted item
-        const currentData = queryClient.getQueryData<CostCenter[]>(['costCenters']) || [];
-        const updatedData = currentData.filter(center => center.id !== data.id);
-        queryClient.setQueryData(['costCenters'], updatedData);
-        
-        toast({
-          title: "Centro de custo excluído com sucesso",
-        });
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['costCenters'] });
+      toast({
+        title: "Centro de custo excluído com sucesso",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -147,7 +141,7 @@ const CentroCustos = () => {
     setEditingCostCenter(null);
   };
   
-  const handleSaveCenter = () => {
+  const handleSaveCostCenter = () => {
     if (!newCostCenter.nome) {
       toast({
         title: "Campo obrigatório",
@@ -176,7 +170,7 @@ const CentroCustos = () => {
     saveCostCenterMutation.mutate(costCenterToSave);
   };
   
-  const handleEditCenter = (costCenter: CostCenter) => {
+  const handleEditCostCenter = (costCenter: CostCenter) => {
     console.log('Editing cost center:', costCenter);
     setEditingCostCenter(costCenter);
     setNewCostCenter({
@@ -186,7 +180,7 @@ const CentroCustos = () => {
     setDialogOpen(true);
   };
 
-  const handleDeleteCenter = (id: string) => {
+  const handleDeleteCostCenter = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este centro de custo?')) {
       deleteCostCenterMutation.mutate(id);
     }
@@ -301,7 +295,7 @@ const CentroCustos = () => {
                 </Button>
                 <Button 
                   className="bg-purple hover:bg-purple/90" 
-                  onClick={handleSaveCenter}
+                  onClick={handleSaveCostCenter}
                   disabled={saveCostCenterMutation.isPending}
                 >
                   {saveCostCenterMutation.isPending ? 'Salvando...' : 'Salvar'}
@@ -359,11 +353,11 @@ const CentroCustos = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditCenter(costCenter)}>
+                        <DropdownMenuItem onClick={() => handleEditCostCenter(costCenter)}>
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleDeleteCenter(costCenter.id)}
+                          onClick={() => handleDeleteCostCenter(costCenter.id)}
                           className="text-red-600"
                         >
                           Excluir
