@@ -10,7 +10,7 @@ interface User {
   empresa: string;
   telefone: string;
   token?: string;
-  avatar_url?: string; // Add avatar_url property
+  avatar_url?: string;
 }
 
 interface AuthContextType {

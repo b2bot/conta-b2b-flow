@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths } from 'date-fns';
+import { format, addMonths, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,7 +49,7 @@ interface Transaction {
   id: string;
   data: string;
   descricao: string;
-  paymentTo: string;
+  contato_id?: string;
   categoria_nome: string;
   valor: number;
   tipo: 'Despesa' | 'Receita';
@@ -59,7 +59,6 @@ interface Transaction {
   status?: string;
   categoria_id: string;
   contato_nome: string;
-  contato_id?: string;
 }
 
 // Define new transaction form
@@ -70,7 +69,7 @@ interface TransactionForm {
   data: Date;
   tipo: 'Despesa' | 'Receita';
   categoria_id: string;
-  paymentTo: string;
+  contato_id: string;
   centro_custo_id?: string;
   paid: boolean;
   recurrence: 'none' | 'monthly' | 'yearly';
@@ -95,7 +94,7 @@ const Transacoes = () => {
     data: new Date(),
     tipo: 'Despesa',
     categoria_id: '',
-    paymentTo: '',
+    contato_id: '',
     centro_custo_id: '',
     paid: false,
     recurrence: 'none',
@@ -111,14 +110,19 @@ const Transacoes = () => {
   const { data: transactionsData = [], isLoading, refetch } = useQuery({
     queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
-      const response = await transactionsAPI.list();
-      console.log('Fetched transactions:', response);
-      return response.status === 'success' ? response.transacoes : [];
+      try {
+        const response = await transactionsAPI.list();
+        console.log('Fetched transactions:', response);
+        return response.status === 'success' ? response.transacoes : [];
+      } catch (err) {
+        console.error('Error fetching transactions:', err);
+        return [];
+      }
     }
   });
 
   // Fetch categories for dropdown
-  const { data: categories = [] } = useQuery({
+  const { data: categoriesData = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await categoriesAPI.list();
@@ -127,7 +131,7 @@ const Transacoes = () => {
   });
 
   // Fetch contacts for dropdown
-  const { data: contacts = [] } = useQuery({
+  const { data: contactsData = [] } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       const response = await contactsAPI.list();
@@ -215,7 +219,7 @@ const Transacoes = () => {
       data: new Date(),
       tipo: 'Despesa',
       categoria_id: '',
-      paymentTo: '',
+      contato_id: '',
       centro_custo_id: '',
       paid: false,
       recurrence: 'none',
@@ -262,8 +266,7 @@ const Transacoes = () => {
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
       // This is a placeholder - actual implementation would call the delete API
-      // return await transactionsAPI.delete(id);
-      // For now we'll simulate a successful delete
+      console.log('Deleting transaction with ID:', id);
       return { status: 'success', id };
     },
     onSuccess: (data) => {
@@ -316,7 +319,7 @@ const Transacoes = () => {
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
-      contato_id: newTransaction.paymentTo, // Make sure contato_id is saved
+      contato_id: newTransaction.contato_id, // Make sure contato_id is saved
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
@@ -356,7 +359,7 @@ const Transacoes = () => {
       data: transactionDate,
       tipo: transaction.tipo,
       categoria_id: transaction.categoria_id,
-      paymentTo: transaction.contato_id || '',
+      contato_id: transaction.contato_id || '',
       paid: transaction.paid,
       recurrence: transaction.recurrence || 'none',
       detalhes: transaction.detalhes || ''
@@ -398,9 +401,9 @@ const Transacoes = () => {
       return true;
     });
 
-    // Now remove duplicates using transaction id
-    const uniqueTransactions = [];
-    const seenIds = new Set();
+    // Now deduplicate the transactions by ID
+    const uniqueTransactions: Transaction[] = [];
+    const seenIds = new Set<string>();
     
     for (const transaction of filtered) {
       if (!seenIds.has(transaction.id)) {
@@ -479,23 +482,23 @@ const Transacoes = () => {
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((category) => (
+                      {categoriesData.map((category) => (
                         <SelectItem key={category.id} value={category.id}>{category.nome}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payment-to">Contato</Label>
+                  <Label htmlFor="contact">Contato</Label>
                   <Select
-                    value={newTransaction.paymentTo}
-                    onValueChange={(value) => setNewTransaction({ ...newTransaction, paymentTo: value })}
+                    value={newTransaction.contato_id}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, contato_id: value })}
                   >
-                    <SelectTrigger id="payment-to">
+                    <SelectTrigger id="contact">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {contacts.map((contact) => (
+                      {contactsData.map((contact) => (
                         <SelectItem key={contact.id} value={contact.id}>{contact.nome}</SelectItem>
                       ))}
                     </SelectContent>
@@ -553,11 +556,11 @@ const Transacoes = () => {
                   {newTransaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
                 </Label>
                 <Input
-                  id="date-paid"
-                  type="text"
-                  placeholder="DD/MM/AAAA"
-                  className="max-w-[120px]"
-                  defaultValue={format(new Date(), 'dd/MM/yyyy')}
+                  id="paid"
+                  type="checkbox"
+                  className="w-4 h-4"
+                  checked={newTransaction.paid}
+                  onChange={(e) => setNewTransaction({ ...newTransaction, paid: e.target.checked })}
                 />
               </div>
             </div>
@@ -678,7 +681,7 @@ const Transacoes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
-                    {categories.map((category) => (
+                    {categoriesData.map((category) => (
                       <SelectItem key={category.id} value={category.nome}>{category.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -695,7 +698,7 @@ const Transacoes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {contacts.map((contact) => (
+                    {contactsData.map((contact) => (
                       <SelectItem key={contact.id} value={contact.nome}>{contact.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -715,6 +718,8 @@ const Transacoes = () => {
         toggleTransactionPaid={toggleTransactionPaid}
         handleEditTransaction={handleEditTransaction}
         handleDeleteTransaction={handleDeleteTransaction}
+        saveTransactionMutation={saveTransactionMutation}
+        deleteTransactionMutation={deleteTransactionMutation}
       />
     </div>
   );

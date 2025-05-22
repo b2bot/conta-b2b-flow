@@ -8,8 +8,6 @@ import {
   CreditCard, 
   Tags, 
   BarChart2, 
-  Settings, 
-  Users,
   LogOut,
   Menu,
   X,
@@ -43,7 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Transações', href: '/transacoes', icon: Receipt },
     { name: 'Recorrentes', href: '/recorrentes', icon: RotateCcw },
-    { name: 'Contatos', href: '/contatos', icon: Users },
+    { name: 'Contatos', href: '/contatos', icon: CreditCard },
     { name: 'Centro de Custos', href: '/centro-custos', icon: Tags },
     { name: 'Categorias', href: '/categorias', icon: BookOpen },
   ];
@@ -135,7 +133,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   to={item.href}
                   className={cn(
                     "group flex items-center px-3 py-3 text-sm font-medium rounded-md text-white",
-                    location.pathname === item.href 
+                    location.pathname === item.href || 
+                    (location.pathname === '/dashboard' && item.href === '/') 
                       ? "bg-gray-800 text-white" 
                       : "text-gray-300 hover:bg-gray-700"
                   )}
