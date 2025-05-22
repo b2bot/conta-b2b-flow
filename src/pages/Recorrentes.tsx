@@ -116,73 +116,48 @@ const Recorrentes = () => {
     }
   }, [nextDate]);
   
-  // Fix the recurrent transaction listing
   // Fetch recurring transactions
   const { data: recurringsData, isLoading, isError } = useQuery({
     queryKey: ['recurrings'],
     queryFn: async () => {
       try {
         const response = await recurrencesAPI.list();
-        console.log('Recurrings response:', response);
-        
         if (response.status === 'success') {
-          // Ensure the data is properly mapped
-          if (Array.isArray(response.recorrencias)) {
-            return response.recorrencias.map(item => ({
-              ...item,
-              // Make sure each item has all required fields with proper defaults
-              id: item.id || `rec-${Math.random().toString(36).slice(2, 11)}`,
-              descricao: item.descricao || 'Sem descrição',
-              valor: parseFloat(item.valor) || 0,
-              tipo: item.tipo || 'Despesa',
-              categoria_id: item.categoria_id || '',
-              categoria_nome: item.categoria_nome || 'Sem categoria',
-              contato_id: item.contato_id || '',
-              contato_nome: item.contato_nome || 'Sem contato',
-              frequencia: item.frequencia || 'monthly',
-              dia: item.dia || '1',
-              proxima_data: item.proxima_data || format(new Date(), 'yyyy-MM-dd'),
-              ativo: item.ativo !== undefined ? item.ativo : true
-            }));
-          }
-          return [];
+          return response.recorrencias || [];
         } else {
-          console.error('API Error:', response.message);
-          return [];
+          throw new Error(response.message || 'Error fetching recurring transactions');
         }
       } catch (err) {
         console.error('Error fetching recurring transactions:', err);
-        return [];
+        throw err;
       }
     }
   });
 
-  // Add derived state to ensure we always have an array
-  const recurrings = recurringsData || [];
-  console.log('Recurrings data after processing:', recurrings);
+  // Fetch categories
+  const { data: categoriesData = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await categoriesAPI.list();
+      return response.status === 'success' ? response.categorias : [];
+    }
+  });
+
+  // Fetch contacts
+  const { data: contactsData = [] } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      const response = await contactsAPI.list();
+      return response.status === 'success' ? response.contatos : [];
+    }
+  });
 
   // Create/update recurring transaction mutation
   const saveRecurringMutation = useMutation({
-    mutationFn: (recurring: RecurringForm) => {
-      console.log('Saving recurring:', recurring);
-      return recurrencesAPI.save(recurring);
-    },
+    mutationFn: (recurring: RecurringForm) => recurrencesAPI.save(recurring),
     onSuccess: (data) => {
-      console.log('Save recurring response:', data);
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-        
-        // Also add the new recurring to the local state immediately
-        const currentData = queryClient.getQueryData(['recurrings']) as RecurringTransaction[] || [];
-        const newEntry = {
-          id: data.id,
-          ...newRecurring,
-          categoria_nome: categories.find(c => c.id === newRecurring.categoria_id)?.nome || '',
-          contato_nome: contacts.find(c => c.id === newRecurring.contato_id)?.nome || ''
-        };
-        
-        queryClient.setQueryData(['recurrings'], [...currentData, newEntry]);
-        
         toast({
           title: editingRecurring ? "Recorrência atualizada com sucesso" : "Recorrência criada com sucesso",
         });
@@ -276,6 +251,7 @@ const Recorrentes = () => {
     }
   });
 
+  const recurrings = recurringsData || [];
   const categories = categoriesData || [];
   const contacts = contactsData || [];
 
