@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,6 +60,7 @@ const CentroCustos = () => {
     queryFn: async () => {
       try {
         const response = await costCentersAPI.list();
+        console.log('Cost centers response:', response);
         return response.status === 'success' ? response.centros_custo : [];
       } catch (err) {
         console.error('Error fetching cost centers:', err);
@@ -69,8 +71,12 @@ const CentroCustos = () => {
 
   // Create/update cost center mutation
   const saveCostCenterMutation = useMutation({
-    mutationFn: (costCenter: CostCenterForm & { id?: string }) => costCentersAPI.save(costCenter),
+    mutationFn: async (costCenter: CostCenterForm & { id?: string }) => {
+      console.log('Saving cost center:', costCenter);
+      return await costCentersAPI.save(costCenter);
+    },
     onSuccess: (data) => {
+      console.log('Save cost center response:', data);
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['costCenters'] });
         toast({
@@ -87,6 +93,7 @@ const CentroCustos = () => {
       }
     },
     onError: (error: Error) => {
+      console.error('Error saving cost center:', error);
       toast({
         title: "Erro ao salvar centro de custo",
         description: error.message,
@@ -165,6 +172,7 @@ const CentroCustos = () => {
   };
   
   const handleEditCostCenter = (costCenter: CostCenter) => {
+    console.log('Editing cost center:', costCenter);
     setEditingCostCenter(costCenter);
     setNewCostCenter({
       nome: costCenter.nome,

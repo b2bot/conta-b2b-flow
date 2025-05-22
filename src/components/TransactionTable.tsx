@@ -27,6 +27,7 @@ interface Transaction {
   detalhes?: string;
   status?: string;
   categoria_id: string;
+  payment_type?: string;
 }
 
 interface TransactionTableProps {
@@ -119,6 +120,203 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     );
   };
 
+  // Renders the row data based on transaction type
+  const renderTransactionRowData = (transaction: Transaction) => {
+    // Row for Receita transactions
+    if (filters.tipo === 'Receita') {
+      return (
+        <>
+          <div className="col-span-1">
+            {format(new Date(transaction.data), 'dd/MM/yyyy')}
+          </div>
+          <div className="col-span-3 font-medium">
+            <div className="flex items-center gap-2">
+              {transaction.descricao}
+              {getPaymentStatusTag(transaction)}
+            </div>
+          </div>
+          <div className="col-span-2 text-muted-foreground">
+            {transaction.paymentTo}
+          </div>
+          <div className="col-span-2">
+            <Badge 
+              variant="outline" 
+              className="border-green-500 text-green-700 px-2 py-1 text-xs border-1"
+            >
+              {transaction.payment_type || "Depósito"}
+            </Badge>
+          </div>
+          <div
+            className="col-span-2 font-medium text-right text-green-600"
+          >
+            {formatCurrency(transaction.valor)}
+          </div>
+          <div className="col-span-1 flex justify-center">
+            <Switch 
+              checked={transaction.paid}
+              onCheckedChange={() => toggleTransactionPaid(transaction)}
+            />
+          </div>
+          <div className="col-span-1 flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical size={16} />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
+                  {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => handleDeleteTransaction(transaction.id)}
+                  className="text-red-600"
+                >
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </>
+      );
+    }
+    
+    // Row for Despesa transactions
+    if (filters.tipo === 'Despesa') {
+      return (
+        <>
+          <div className="col-span-1">
+            {format(new Date(transaction.data), 'dd/MM/yyyy')}
+          </div>
+          <div className="col-span-3 font-medium">
+            <div className="flex items-center gap-2">
+              {transaction.descricao}
+              {getPaymentStatusTag(transaction)}
+            </div>
+          </div>
+          <div className="col-span-2 text-muted-foreground">
+            {transaction.paymentTo}
+          </div>
+          <div className="col-span-2">
+            <Badge 
+              variant="outline" 
+              className="border-red-500 text-red-700 px-2 py-1 text-xs border-1"
+            >
+              {transaction.categoria_nome}
+            </Badge>
+          </div>
+          <div
+            className="col-span-2 font-medium text-right text-red-600"
+          >
+            {formatCurrency(transaction.valor)}
+          </div>
+          <div className="col-span-1 flex justify-center">
+            <Switch 
+              checked={transaction.paid}
+              onCheckedChange={() => toggleTransactionPaid(transaction)}
+            />
+          </div>
+          <div className="col-span-1 flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical size={16} />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
+                  {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => handleDeleteTransaction(transaction.id)}
+                  className="text-red-600"
+                >
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </>
+      );
+    }
+    
+    // Default row for all transaction types
+    return (
+      <>
+        <div className="col-span-1">
+          {format(new Date(transaction.data), 'dd/MM/yyyy')}
+        </div>
+        <div className="col-span-3 font-medium">
+          <div className="flex items-center gap-2">
+            {transaction.descricao}
+            {getPaymentStatusTag(transaction)}
+          </div>
+        </div>
+        <div className="col-span-2 text-muted-foreground">
+          {transaction.paymentTo}
+        </div>
+        <div className="col-span-2">
+          <Badge 
+            variant="outline" 
+            className={`px-2 py-1 text-xs border-1 ${
+              transaction.tipo === 'Receita' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'
+            }`}
+          >
+            {transaction.categoria_nome}
+          </Badge>
+        </div>
+        <div
+          className={`col-span-2 font-medium text-right ${
+            transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
+          }`}
+        >
+          {formatCurrency(transaction.valor)}
+        </div>
+        <div className="col-span-1 flex justify-center">
+          <Switch 
+            checked={transaction.paid}
+            onCheckedChange={() => toggleTransactionPaid(transaction)}
+          />
+        </div>
+        <div className="col-span-1 flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical size={16} />
+                <span className="sr-only">Abrir menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
+                {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => handleDeleteTransaction(transaction.id)}
+                className="text-red-600"
+              >
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </>
+    );
+  };
+
   return (
     <div className="bg-white rounded-lg border border-border overflow-hidden">
       <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-gray-50 text-sm font-medium text-muted-foreground">
@@ -138,66 +336,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             <div 
               className="grid grid-cols-12 gap-4 p-4 border-b border-border hover:bg-gray-50 transition-colors items-center text-sm"
             >
-              <div className="col-span-1">
-                {format(new Date(transaction.data), 'dd/MM/yyyy')}
-              </div>
-              <div className="col-span-3 font-medium">
-                <div className="flex items-center gap-2">
-                  {transaction.descricao}
-                  {getPaymentStatusTag(transaction)}
-                </div>
-              </div>
-              <div className="col-span-2 text-muted-foreground">
-                {transaction.paymentTo}
-              </div>
-              <div className="col-span-2">
-                <Badge 
-                  variant="outline" 
-                  className={`px-2 py-1 text-xs border-1 ${
-                    transaction.tipo === 'Receita' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'
-                  }`}
-                >
-                  {transaction.categoria_nome}
-                </Badge>
-              </div>
-              <div
-                className={`col-span-2 font-medium text-right ${
-                  transaction.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {formatCurrency(transaction.valor)}
-              </div>
-              <div className="col-span-1 flex justify-center">
-                <Switch 
-                  checked={transaction.paid}
-                  onCheckedChange={() => toggleTransactionPaid(transaction)}
-                />
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical size={16} />
-                      <span className="sr-only">Abrir menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toggleExpandTransaction(transaction.id)}>
-                      {expandedTransaction === transaction.id ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => handleDeleteTransaction(transaction.id)}
-                      className="text-red-600"
-                    >
-                      Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              {renderTransactionRowData(transaction)}
             </div>
             {/* Expanded transaction details */}
             {expandedTransaction === transaction.id && (
