@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,7 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -57,7 +55,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
-import { generateInputId, formatCpfCnpj } from '@/utils/formUtils';
 
 // Define contact type
 interface Contact {
@@ -125,26 +122,12 @@ const Contatos = () => {
   const [birthDate, setBirthDate] = useState<Date | undefined>(undefined);
   const [birthDateInput, setBirthDateInput] = useState<string>("");
 
-  // Generate unique IDs for form inputs
-  const nameId = generateInputId("name");
-  const typeId = generateInputId("type");
-  const emailId = generateInputId("email");
-  const phoneId = generateInputId("phone");
-  const cpfCnpjId = generateInputId("cpf_cnpj");
-  const companyId = generateInputId("company");
-  const birthDateId = generateInputId("birth_date");
-  const addressId = generateInputId("address");
-  const cityId = generateInputId("city");
-  const stateId = generateInputId("state");
-  const zipId = generateInputId("zip");
-
   // Fetch contacts
   const { data: contactsData, isLoading, isError } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       try {
         const response = await contactsAPI.list();
-        console.log('Contacts response:', response);
         return response.status === 'success' ? response.contatos : [];
       } catch (err) {
         console.error('Error fetching contacts:', err);
@@ -488,21 +471,21 @@ const Contatos = () => {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor={nameId}>Nome*</Label>
+                    <Label htmlFor="name">Nome*</Label>
                     <Input
-                      id={nameId}
+                      id="name"
                       value={newContact.nome}
                       onChange={(e) => setNewContact({ ...newContact, nome: e.target.value })}
                       placeholder="Nome completo"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor={typeId}>Tipo de Contato*</Label>
+                    <Label htmlFor="type">Tipo de Contato*</Label>
                     <Select
                       value={newContact.tipo}
                       onValueChange={(value) => setNewContact({ ...newContact, tipo: value as any })}
                     >
-                      <SelectTrigger id={typeId}>
+                      <SelectTrigger id="type">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -517,9 +500,9 @@ const Contatos = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor={emailId}>Email</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id={emailId}
+                      id="email"
                       type="email"
                       value={newContact.email}
                       onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
@@ -527,9 +510,9 @@ const Contatos = () => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor={phoneId}>Telefone</Label>
+                    <Label htmlFor="phone">Telefone</Label>
                     <Input
-                      id={phoneId}
+                      id="phone"
                       value={newContact.telefone}
                       onChange={(e) => setNewContact({ ...newContact, telefone: e.target.value })}
                       placeholder="(00) 00000-0000"
@@ -538,9 +521,9 @@ const Contatos = () => {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor={cpfCnpjId}>CPF ou CNPJ</Label>
+                  <Label htmlFor="cpf_cnpj">CPF ou CNPJ</Label>
                   <Input
-                    id={cpfCnpjId}
+                    id="cpf_cnpj"
                     value={newContact.cpf_cnpj}
                     onChange={(e) => setNewContact({ ...newContact, cpf_cnpj: e.target.value })}
                     placeholder="000.000.000-00 ou 00.000.000/0000-00"
@@ -549,19 +532,19 @@ const Contatos = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor={companyId}>Empresa</Label>
+                    <Label htmlFor="company">Empresa</Label>
                     <Input
-                      id={companyId}
+                      id="company"
                       value={newContact.empresa}
                       onChange={(e) => setNewContact({ ...newContact, empresa: e.target.value })}
                       placeholder="Nome da empresa"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor={birthDateId}>Data de Nascimento</Label>
+                    <Label htmlFor="birth_date">Data de Nascimento</Label>
                     <div className="flex space-x-2">
                       <Input
-                        id={birthDateId}
+                        id="birth_date"
                         value={birthDateInput}
                         onChange={handleBirthDateChange}
                         placeholder="DD/MM/AAAA"
@@ -588,9 +571,9 @@ const Contatos = () => {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor={addressId}>Endereço</Label>
+                  <Label htmlFor="address">Endereço</Label>
                   <Input
-                    id={addressId}
+                    id="address"
                     value={newContact.endereco}
                     onChange={(e) => setNewContact({ ...newContact, endereco: e.target.value })}
                     placeholder="Rua, número, complemento"
@@ -599,18 +582,18 @@ const Contatos = () => {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor={cityId}>Cidade</Label>
+                    <Label htmlFor="city">Cidade</Label>
                     <Input
-                      id={cityId}
+                      id="city"
                       value={newContact.cidade}
                       onChange={(e) => setNewContact({ ...newContact, cidade: e.target.value })}
                       placeholder="Cidade"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor={stateId}>Estado</Label>
+                    <Label htmlFor="state">Estado</Label>
                     <Input
-                      id={stateId}
+                      id="state"
                       value={newContact.estado}
                       onChange={(e) => setNewContact({ ...newContact, estado: e.target.value })}
                       placeholder="UF"
@@ -618,9 +601,9 @@ const Contatos = () => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor={zipId}>CEP</Label>
+                    <Label htmlFor="zip">CEP</Label>
                     <Input
-                      id={zipId}
+                      id="zip"
                       value={newContact.cep}
                       onChange={(e) => setNewContact({ ...newContact, cep: e.target.value })}
                       placeholder="00000-000"
@@ -778,13 +761,13 @@ const Contatos = () => {
                     {getContactTypeBadge(contact.tipo)}
                   </div>
                   <div className="col-span-2 text-muted-foreground">
-                    {formatCpfCnpj(contact.cpf_cnpj) || "-"}
+                    {contact.cpf_cnpj || "-"}
                   </div>
                   <div className="col-span-2 text-muted-foreground truncate">
-                    {contact.email || "-"}
+                    {contact.email}
                   </div>
                   <div className="col-span-2 text-muted-foreground">
-                    {contact.telefone || "-"}
+                    {contact.telefone}
                   </div>
                   <div className="col-span-1 flex justify-end">
                     <DropdownMenu>
