@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,7 +35,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addMonths, parse } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,7 +48,7 @@ interface Transaction {
   id: string;
   data: string;
   descricao: string;
-  contato_id?: string;
+  paymentTo: string;
   categoria_nome: string;
   valor: number;
   tipo: 'Despesa' | 'Receita';
@@ -58,7 +57,6 @@ interface Transaction {
   detalhes?: string;
   status?: string;
   categoria_id: string;
-  contato_nome: string;
 }
 
 // Define new transaction form
@@ -69,7 +67,7 @@ interface TransactionForm {
   data: Date;
   tipo: 'Despesa' | 'Receita';
   categoria_id: string;
-  contato_id: string;
+  paymentTo: string;
   centro_custo_id?: string;
   paid: boolean;
   recurrence: 'none' | 'monthly' | 'yearly';
@@ -94,7 +92,7 @@ const Transacoes = () => {
     data: new Date(),
     tipo: 'Despesa',
     categoria_id: '',
-    contato_id: '',
+    paymentTo: '',
     centro_custo_id: '',
     paid: false,
     recurrence: 'none',
@@ -110,14 +108,8 @@ const Transacoes = () => {
   const { data: transactionsData = [], isLoading, refetch } = useQuery({
     queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
-      try {
-        const response = await transactionsAPI.list();
-        console.log('Fetched transactions:', response);
-        return response.status === 'success' ? response.transacoes : [];
-      } catch (err) {
-        console.error('Error fetching transactions:', err);
-        return [];
-      }
+      const response = await transactionsAPI.list();
+      return response.status === 'success' ? response.transacoes : [];
     }
   });
 
@@ -139,38 +131,9 @@ const Transacoes = () => {
     }
   });
 
-  // Save transaction mutation
-  const saveTransactionMutation = useMutation({
-    mutationFn: async (transaction: any) => {
-      console.log('Saving transaction:', transaction);
-      return await transactionsAPI.save(transaction);
-    },
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast({
-          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
-        });
-        setDialogOpen(false);
-        resetTransactionForm();
-      } else {
-        toast({
-          title: "Erro ao salvar transação",
-          description: data.message || "Ocorreu um erro ao salvar a transação",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao salvar transação",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
   const transactions = transactionsData || [];
+  const categories = categoriesData || [];
+  const contacts = contactsData || [];
 
   const nextMonth = () => {
     setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
@@ -219,7 +182,7 @@ const Transacoes = () => {
       data: new Date(),
       tipo: 'Despesa',
       categoria_id: '',
-      contato_id: '',
+      paymentTo: '',
       centro_custo_id: '',
       paid: false,
       recurrence: 'none',
@@ -228,21 +191,67 @@ const Transacoes = () => {
     setIsEditing(false);
   };
 
+  const filteredTransactions = transactions.filter(transaction => {
+    // Filter by month/year
+    const transactionDate = new Date(transaction.data);
+    if (
+      transactionDate.getMonth() !== currentMonth.getMonth() ||
+      transactionDate.getFullYear() !== currentMonth.getFullYear()
+    ) {
+      return false;
+    }
+
+    // Apply other filters
+    if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
+    if (filters.paid !== 'all') {
+      if (filters.paid === 'paid' && !transaction.paid) return false;
+      if (filters.paid === 'pending' && transaction.paid) return false;
+    }
+    if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
+    if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
+
+    return true;
+  });
+
+  // Create/update transaction mutation
+  const saveTransactionMutation = useMutation({
+    mutationFn: (transaction: any) => transactionsAPI.save(transaction),
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast({
+          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
+        });
+        setDialogOpen(false);
+        resetTransactionForm();
+      } else {
+        toast({
+          title: "Erro ao salvar transação",
+          description: data.message || "Ocorreu um erro ao salvar a transação",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar transação",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Toggle transaction paid status mutation
   const togglePaidStatusMutation = useMutation({
     mutationFn: (transaction: Transaction) => {
-      const updatedTransaction = {
+      return transactionsAPI.save({
         ...transaction,
         paid: !transaction.paid
-      };
-      console.log('Toggling paid status:', updatedTransaction);
-      return transactionsAPI.save(updatedTransaction);
+      });
     },
     onSuccess: (data) => {
-      console.log('Toggle paid status response:', data);
       if (data.status === 'success') {
-        // Force refetch the data to update the UI
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        
         toast({
           title: "Status atualizado com sucesso",
         });
@@ -263,23 +272,19 @@ const Transacoes = () => {
     }
   });
 
+  // Delete transaction mutation
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
       // This is a placeholder - actual implementation would call the delete API
-      console.log('Deleting transaction with ID:', id);
-      return { status: 'success', id };
+      // return await transactionsAPI.delete(id);
+      // For now we'll simulate a successful delete
+      return { status: 'success' };
     },
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        // Update local state to remove the deleted item
-        const currentData = queryClient.getQueryData<Transaction[]>(['transactions']) || [];
-        const updatedData = currentData.filter(item => item.id !== data.id);
-        queryClient.setQueryData(['transactions'], updatedData);
-        
-        toast({
-          title: "Transação excluída com sucesso",
-        });
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: "Transação excluída com sucesso",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -313,21 +318,19 @@ const Transacoes = () => {
 
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
 
-    // Ensure contato_id is included in the saved transaction for proper contact display
     const transactionToSave = {
       ...(isEditing && newTransaction.id ? { id: newTransaction.id } : {}),
       data: dateString,
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
-      contato_id: newTransaction.contato_id, // Make sure contato_id is saved
+      paymentTo: newTransaction.paymentTo,
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
       recurrence: newTransaction.recurrence,
-      detalhes: newTransaction.detalhes || ""
+      detalhes: newTransaction.detalhes
     };
 
-    console.log('Saving transaction:', transactionToSave);
     saveTransactionMutation.mutate(transactionToSave);
   };
 
@@ -359,9 +362,9 @@ const Transacoes = () => {
       data: transactionDate,
       tipo: transaction.tipo,
       categoria_id: transaction.categoria_id,
-      contato_id: transaction.contato_id || '',
+      paymentTo: transaction.paymentTo,
       paid: transaction.paid,
-      recurrence: transaction.recurrence || 'none',
+      recurrence: transaction.recurrence,
       detalhes: transaction.detalhes || ''
     });
     
@@ -376,44 +379,6 @@ const Transacoes = () => {
   useEffect(() => {
     refetch();
   }, [filters, refetch]);
-
-  const filteredTransactionsNoDuplicates = React.useMemo(() => {
-    // First apply the filters
-    const filtered = transactions.filter(transaction => {
-      // Filter by month/year
-      const transactionDate = new Date(transaction.data);
-      if (
-        transactionDate.getMonth() !== currentMonth.getMonth() ||
-        transactionDate.getFullYear() !== currentMonth.getFullYear()
-      ) {
-        return false;
-      }
-
-      // Apply other filters
-      if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
-      if (filters.paid !== 'all') {
-        if (filters.paid === 'paid' && !transaction.paid) return false;
-        if (filters.paid === 'pending' && transaction.paid) return false;
-      }
-      if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-      if (filters.contact !== 'all' && transaction.contato_nome !== filters.contact) return false;
-
-      return true;
-    });
-
-    // Now deduplicate the transactions by ID
-    const uniqueTransactions: Transaction[] = [];
-    const seenIds = new Set<string>();
-    
-    for (const transaction of filtered) {
-      if (!seenIds.has(transaction.id)) {
-        seenIds.add(transaction.id);
-        uniqueTransactions.push(transaction);
-      }
-    }
-    
-    return uniqueTransactions;
-  }, [transactions, currentMonth, filters]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -482,23 +447,23 @@ const Transacoes = () => {
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categoriesData.map((category) => (
+                      {categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>{category.nome}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contact">Contato</Label>
+                  <Label htmlFor="payment-to">Contato</Label>
                   <Select
-                    value={newTransaction.contato_id}
-                    onValueChange={(value) => setNewTransaction({ ...newTransaction, contato_id: value })}
+                    value={newTransaction.paymentTo}
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, paymentTo: value })}
                   >
-                    <SelectTrigger id="contact">
+                    <SelectTrigger id="payment-to">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {contactsData.map((contact) => (
+                      {contacts.map((contact) => (
                         <SelectItem key={contact.id} value={contact.id}>{contact.nome}</SelectItem>
                       ))}
                     </SelectContent>
@@ -521,6 +486,7 @@ const Transacoes = () => {
                         onSelect={(date) => date && setNewTransaction({ ...newTransaction, data: date })}
                         initialFocus
                         locale={ptBR}
+                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
@@ -556,11 +522,11 @@ const Transacoes = () => {
                   {newTransaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
                 </Label>
                 <Input
-                  id="paid"
-                  type="checkbox"
-                  className="w-4 h-4"
-                  checked={newTransaction.paid}
-                  onChange={(e) => setNewTransaction({ ...newTransaction, paid: e.target.checked })}
+                  id="date-paid"
+                  type="text"
+                  placeholder="DD/MM/AAAA"
+                  className="max-w-[120px]"
+                  defaultValue={format(new Date(), 'dd/MM/yyyy')}
                 />
               </div>
             </div>
@@ -681,7 +647,7 @@ const Transacoes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
-                    {categoriesData.map((category) => (
+                    {categories.map((category) => (
                       <SelectItem key={category.id} value={category.nome}>{category.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -698,7 +664,7 @@ const Transacoes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {contactsData.map((contact) => (
+                    {contacts.map((contact) => (
                       <SelectItem key={contact.id} value={contact.nome}>{contact.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -711,15 +677,13 @@ const Transacoes = () => {
       
       <TransactionTable
         isLoading={isLoading}
-        filteredTransactions={filteredTransactionsNoDuplicates}
+        filteredTransactions={filteredTransactions}
         filters={filters}
         expandedTransaction={expandedTransaction}
         toggleExpandTransaction={toggleExpandTransaction}
         toggleTransactionPaid={toggleTransactionPaid}
         handleEditTransaction={handleEditTransaction}
         handleDeleteTransaction={handleDeleteTransaction}
-        saveTransactionMutation={saveTransactionMutation}
-        deleteTransactionMutation={deleteTransactionMutation}
       />
     </div>
   );
