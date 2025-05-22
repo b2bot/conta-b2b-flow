@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle, Upload, Eye, EyeOff } from 'lucide-react';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
+// Define proper User type to match what's expected
 interface User {
   id?: string;
   email: string;
@@ -30,7 +30,7 @@ interface ProfileForm {
 }
 
 const Perfil = () => {
-  const { user, setUser } = useAuth();
+  const { user, updateUser } = useAuth(); // Using updateUser instead of setUser
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -38,23 +38,36 @@ const Perfil = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm<ProfileForm>({
-    defaultValues: {
-      email: user?.email || '',
-      nome_completo: user?.nome_completo || '',
-      empresa: user?.empresa || '',
-      telefone: user?.telefone || '',
-      senha: '',
-      confirmacao_senha: '',
-    },
+  const [formData, setFormData] = useState<ProfileForm>({
+    email: '',
+    nome_completo: '',
+    empresa: '',
+    telefone: '',
+    senha: '',
+    confirmacao_senha: '',
   });
 
-  const senha = watch("senha");
+  // Initialize form with user data
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        email: user.email || '',
+        nome_completo: user.nome_completo || '',
+        empresa: user.empresa || '',
+        telefone: user.telefone || '',
+        senha: '',
+        confirmacao_senha: '',
+      });
+    }
+  }, [user]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [id]: value
+    }));
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -76,11 +89,11 @@ const Perfil = () => {
     }
   };
 
-  const onSubmit = async (data: ProfileForm) => {
+  const onSubmit = async () => {
     setLoading(true);
     try {
       // Validate password confirmation if password is provided
-      if (data.senha && data.senha !== data.confirmacao_senha) {
+      if (formData.senha && formData.senha !== formData.confirmacao_senha) {
         toast({
           variant: 'destructive',
           title: 'Erro!',
@@ -91,7 +104,7 @@ const Perfil = () => {
       }
 
       // Remove confirmacao_senha from data to be sent to API
-      const { confirmacao_senha, ...submitData } = data;
+      const { confirmacao_senha, ...submitData } = formData;
       
       // Only include senha if it's not empty
       if (!submitData.senha) {
@@ -107,11 +120,19 @@ const Perfil = () => {
         });
         
         // Atualiza o contexto de autenticação com os novos dados
-        if (user) {
-          setUser({
+        if (user && updateUser) {
+          updateUser({
             ...user,
             ...submitData,
           });
+        }
+
+        // If there's an avatar file, we would upload it here
+        // This is a placeholder for when you implement avatar upload API
+        if (avatarFile) {
+          console.log('Avatar file would be uploaded here:', avatarFile);
+          // Implement avatar upload here when the API endpoint is available
+          // For now, we'll just acknowledge it visually with the preview
         }
       } else {
         toast({
@@ -183,17 +204,15 @@ const Perfil = () => {
               <CardTitle>Informações Pessoais</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="nome_completo">Nome Completo</Label>
                     <Input
                       id="nome_completo"
-                      {...register('nome_completo', { required: 'Nome é obrigatório' })}
+                      value={formData.nome_completo}
+                      onChange={handleInputChange}
                     />
-                    {errors.nome_completo && (
-                      <p className="text-sm text-red-500">{errors.nome_completo.message}</p>
-                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -201,17 +220,9 @@ const Perfil = () => {
                     <Input
                       id="email"
                       type="email"
-                      {...register('email', { 
-                        required: 'E-mail é obrigatório',
-                        pattern: {
-                          value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                          message: 'E-mail inválido',
-                        },
-                      })}
+                      value={formData.email}
+                      onChange={handleInputChange}
                     />
-                    {errors.email && (
-                      <p className="text-sm text-red-500">{errors.email.message}</p>
-                    )}
                   </div>
                 </div>
                 
@@ -220,7 +231,8 @@ const Perfil = () => {
                     <Label htmlFor="empresa">Empresa</Label>
                     <Input
                       id="empresa"
-                      {...register('empresa')}
+                      value={formData.empresa}
+                      onChange={handleInputChange}
                     />
                   </div>
                   
@@ -228,7 +240,8 @@ const Perfil = () => {
                     <Label htmlFor="telefone">Telefone</Label>
                     <Input
                       id="telefone"
-                      {...register('telefone')}
+                      value={formData.telefone}
+                      onChange={handleInputChange}
                     />
                   </div>
                 </div>
@@ -240,7 +253,8 @@ const Perfil = () => {
                       <Input
                         id="senha"
                         type={showPassword ? "text" : "password"}
-                        {...register('senha')}
+                        value={formData.senha}
+                        onChange={handleInputChange}
                         autoComplete="new-password"
                       />
                       <button
@@ -259,21 +273,21 @@ const Perfil = () => {
                       <Input
                         id="confirmacao_senha"
                         type={showPassword ? "text" : "password"}
-                        {...register('confirmacao_senha', {
-                          validate: value => 
-                            !senha || value === senha || "As senhas não coincidem"
-                        })}
+                        value={formData.confirmacao_senha}
+                        onChange={handleInputChange}
                         autoComplete="new-password"
                       />
-                      {errors.confirmacao_senha && (
-                        <p className="text-sm text-red-500">{errors.confirmacao_senha.message}</p>
-                      )}
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex justify-end pt-4">
-                  <Button type="submit" className="bg-purple hover:bg-purple/90" disabled={loading}>
+                  <Button 
+                    type="button" 
+                    className="bg-purple hover:bg-purple/90" 
+                    disabled={loading}
+                    onClick={onSubmit}
+                  >
                     {loading ? 'Salvando...' : 'Salvar Alterações'}
                   </Button>
                 </div>
