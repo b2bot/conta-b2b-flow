@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Home, 
@@ -36,6 +36,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
 
   const navigation = [

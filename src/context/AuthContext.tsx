@@ -10,6 +10,7 @@ interface User {
   empresa: string;
   telefone: string;
   token?: string;
+  avatar_url?: string; // Add avatar_url property
 }
 
 interface AuthContextType {
@@ -18,8 +19,8 @@ interface AuthContextType {
   signOut: () => void;
   loading: boolean;
   updateUser: (user: User) => void;
-  isAuthenticated: boolean; // Added missing property
-  isLoading: boolean; // Added missing property
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 // Create the auth context
@@ -49,8 +50,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add this function to update user details
   const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
+    // Make sure to maintain avatar_url if present in the current user
+    const mergedUser = {
+      ...updatedUser,
+      avatar_url: updatedUser.avatar_url || (user?.avatar_url || undefined)
+    };
+    setUser(mergedUser);
+    localStorage.setItem('user', JSON.stringify(mergedUser));
   };
 
   const signIn = async (email: string, password: string) => {
@@ -64,7 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           nome_completo: response.nome_completo,
           empresa: response.empresa,
           telefone: response.telefone,
-          token: response.token
+          token: response.token,
+          avatar_url: response.avatar_url
         };
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
@@ -97,8 +104,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     loading,
     updateUser,
-    isAuthenticated: !!user, // Added computed property
-    isLoading: loading, // Added alias for loading
+    isAuthenticated: !!user,
+    isLoading: loading,
   };
 
   return (

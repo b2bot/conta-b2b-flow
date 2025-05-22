@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,7 +57,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
-import { generateInputId } from '@/utils/formUtils';
+import { generateInputId, formatCpfCnpj } from '@/utils/formUtils';
 
 // Define contact type
 interface Contact {
@@ -143,6 +144,7 @@ const Contatos = () => {
     queryFn: async () => {
       try {
         const response = await contactsAPI.list();
+        console.log('Contacts response:', response);
         return response.status === 'success' ? response.contatos : [];
       } catch (err) {
         console.error('Error fetching contacts:', err);
@@ -776,7 +778,7 @@ const Contatos = () => {
                     {getContactTypeBadge(contact.tipo)}
                   </div>
                   <div className="col-span-2 text-muted-foreground">
-                    {contact.cpf_cnpj || "-"}
+                    {formatCpfCnpj(contact.cpf_cnpj) || "-"}
                   </div>
                   <div className="col-span-2 text-muted-foreground truncate">
                     {contact.email || "-"}

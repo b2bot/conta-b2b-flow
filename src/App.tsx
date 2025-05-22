@@ -37,16 +37,22 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             
             {/* Protected Routes */}
-            <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="transacoes" element={<Transacoes />} />
-              <Route path="recorrentes" element={<Recorrentes />} />
-              <Route path="categorias" element={<Categorias />} />
-              <Route path="centro-custos" element={<CentroCustos />} />
-              <Route path="contatos" element={<Contatos />} />
-              <Route path="perfil" element={<Perfil />} />
-            </Route>
+            <Route path="/" element={
+              <RequireAuth>
+                <Layout>
+                  <Routes>
+                    <Route index element={<Dashboard />} />
+                    <Route path="dashboard" element={<Dashboard />} />
+                    <Route path="transacoes" element={<Transacoes />} />
+                    <Route path="recorrentes" element={<Recorrentes />} />
+                    <Route path="categorias" element={<Categorias />} />
+                    <Route path="centro-custos" element={<CentroCustos />} />
+                    <Route path="contatos" element={<Contatos />} />
+                    <Route path="perfil" element={<Perfil />} />
+                  </Routes>
+                </Layout>
+              </RequireAuth>
+            } />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,12 +1,19 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Calendar as CalendarIcon, 
+  ChevronLeft, 
+  ChevronRight, 
   Plus, 
-  MoreVertical, 
-  Download,
+  Filter,
+  ChevronDown,
   Check,
+  X,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  MoreVertical,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import {
   Dialog,
@@ -21,173 +28,176 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, addMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { recurrenciesAPI, categoriesAPI, contactsAPI } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { recurrencesAPI, categoriesAPI, contactsAPI } from '@/services/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, addMonths, addYears, parse } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { exportToExcel } from '@/utils/fileUtils';
+import { formatCurrency, generateInputId } from '@/utils/formUtils';
 
-// Define recurring transaction type
-interface RecurringTransaction {
+// Define recurrence type
+interface RecurrentTransaction {
   id: string;
-  descricao: string;
+  nome: string;
   valor: number;
-  tipo: 'Despesa' | 'Receita';
+  dia_vencimento: number;
   categoria_id: string;
   categoria_nome: string;
-  contato_id: string;
-  contato_nome: string;
-  frequencia: 'monthly' | 'yearly';
-  dia: string;
-  proxima_data: string;
-  ativo: boolean;
-  created_at?: string;
+  descricao: string;
+  tipo: 'Despesa' | 'Receita';
+  frequencia: 'mensal' | 'quinzenal' | 'semanal' | 'anual';
+  contato_id?: string;
+  contato_nome?: string;
+  proxima_data?: string;
+  ultima_data?: string;
+  ativa: boolean;
 }
 
-// Define form type
-interface RecurringForm {
+// Define new recurrence form
+interface RecurrenceForm {
   id?: string;
-  descricao: string;
-  valor: number;
-  tipo: 'Despesa' | 'Receita';
+  nome: string;
+  valor: string;
+  dia_vencimento: string;
   categoria_id: string;
   contato_id: string;
-  frequencia: 'monthly' | 'yearly';
-  dia: string;
-  proxima_data: string;
-  ativo: boolean;
+  descricao: string;
+  tipo: 'Despesa' | 'Receita';
+  frequencia: 'mensal' | 'quinzenal' | 'semanal' | 'anual';
+  ativa: boolean;
 }
 
 const Recorrentes = () => {
-  const [newRecurring, setNewRecurring] = useState<RecurringForm>({
-    descricao: '',
-    valor: 0,
-    tipo: 'Despesa',
-    categoria_id: '',
-    contato_id: '',
-    frequencia: 'monthly',
-    dia: '1',
-    proxima_data: format(new Date(), 'yyyy-MM-dd'),
-    ativo: true,
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    tipo: 'all',
+    status: 'all',
+    categoria: 'all',
+    contact: 'all',
   });
 
-  const [openCalendar, setOpenCalendar] = useState(false);
-  const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
+  const [newRecurrence, setNewRecurrence] = useState<RecurrenceForm>({
+    nome: '',
+    valor: '',
+    dia_vencimento: '',
+    categoria_id: '',
+    contato_id: '',
+    descricao: '',
+    tipo: 'Despesa',
+    frequencia: 'mensal',
+    ativa: true
+  });
+  
+  const [editingRecurrence, setEditingRecurrence] = useState<RecurrentTransaction | null>(null);
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editNextDateDialog, setEditNextDateDialog] = useState(false);
-  const [selectedRecurringId, setSelectedRecurringId] = useState<string | null>(null);
-  const [nextDate, setNextDate] = useState<Date | undefined>(new Date());
-  const [nextDateInput, setNextDateInput] = useState<string>(format(new Date(), 'dd/MM/yyyy'));
   const queryClient = useQueryClient();
 
-  // Handle next date input change
-  const handleNextDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setNextDateInput(value);
-    
-    if (value.length === 10) { // dd/MM/yyyy
-      try {
-        const parsedDate = parse(value, "dd/MM/yyyy", new Date());
-        if (!isNaN(parsedDate.getTime())) {
-          setNextDate(parsedDate);
-        }
-      } catch (error) {
-        console.error("Invalid date format:", error);
-      }
-    }
-  };
+  // Generate unique IDs for form accessibility
+  const nameId = generateInputId("recurrence-name");
+  const valueId = generateInputId("recurrence-value");
+  const dueDayId = generateInputId("recurrence-due-day");
+  const typeId = generateInputId("recurrence-type");
+  const categoryId = generateInputId("recurrence-category");
+  const contactId = generateInputId("recurrence-contact");
+  const frequencyId = generateInputId("recurrence-frequency");
+  const descriptionId = generateInputId("recurrence-description");
 
-  // Update input when nextDate changes from calendar
-  React.useEffect(() => {
-    if (nextDate) {
-      setNextDateInput(format(nextDate, "dd/MM/yyyy"));
-    }
-  }, [nextDate]);
-  
-  // Fix the recurrent transaction listing
-  // Fetch recurring transactions
-  const { data: recurringsData, isLoading, isError } = useQuery({
-    queryKey: ['recurrings'],
+  // Fetch recurrences
+  const { data: recurrencesData, isLoading, isError } = useQuery({
+    queryKey: ['recurrences'],
     queryFn: async () => {
       try {
-        const response = await recurrencesAPI.list();
-        console.log('Recurrings response:', response);
-        
-        if (response.status === 'success') {
-          // Ensure the data is properly mapped
-          if (Array.isArray(response.recorrencias)) {
-            return response.recorrencias.map(item => ({
-              ...item,
-              // Make sure each item has all required fields with proper defaults
-              id: item.id || `rec-${Math.random().toString(36).slice(2, 11)}`,
-              descricao: item.descricao || 'Sem descrição',
-              valor: parseFloat(item.valor) || 0,
-              tipo: item.tipo || 'Despesa',
-              categoria_id: item.categoria_id || '',
-              categoria_nome: item.categoria_nome || 'Sem categoria',
-              contato_id: item.contato_id || '',
-              contato_nome: item.contato_nome || 'Sem contato',
-              frequencia: item.frequencia || 'monthly',
-              dia: item.dia || '1',
-              proxima_data: item.proxima_data || format(new Date(), 'yyyy-MM-dd'),
-              ativo: item.ativo !== undefined ? item.ativo : true
-            }));
-          }
-          return [];
+        console.log('Fetching recurrences...');
+        const response = await recurrenciesAPI.list();
+        console.log('Recurrences response:', response);
+        if (response.status === 'success' && Array.isArray(response.recorrencias)) {
+          return response.recorrencias;
         } else {
-          console.error('API Error:', response.message);
+          console.error('Invalid recurrences data format:', response);
           return [];
         }
       } catch (err) {
-        console.error('Error fetching recurring transactions:', err);
+        console.error('Error fetching recurrences:', err);
+        throw err;
+      }
+    }
+  });
+
+  // Fetch categories
+  const { data: categoriesData = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      try {
+        const response = await categoriesAPI.list();
+        return response.status === 'success' ? response.categorias : [];
+      } catch (err) {
+        console.error('Error fetching categories:', err);
         return [];
       }
     }
   });
 
-  // Add derived state to ensure we always have an array
-  const recurrings = recurringsData || [];
-  console.log('Recurrings data after processing:', recurrings);
+  // Fetch contacts
+  const { data: contactsData = [] } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async () => {
+      try {
+        const response = await contactsAPI.list();
+        return response.status === 'success' ? response.contatos : [];
+      } catch (err) {
+        console.error('Error fetching contacts:', err);
+        return [];
+      }
+    }
+  });
 
-  // Create/update recurring transaction mutation
-  const saveRecurringMutation = useMutation({
-    mutationFn: (recurring: RecurringForm) => {
-      console.log('Saving recurring:', recurring);
-      return recurrencesAPI.save(recurring);
+  // Create/update recurrence mutation
+  const saveRecurrenceMutation = useMutation({
+    mutationFn: async (recurrence: any) => {
+      console.log('Saving recurrence:', recurrence);
+      return await recurrenciesAPI.save(recurrence);
     },
     onSuccess: (data) => {
-      console.log('Save recurring response:', data);
+      console.log('Save recurrence response:', data);
       if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-        
-        // Also add the new recurring to the local state immediately
-        const currentData = queryClient.getQueryData(['recurrings']) as RecurringTransaction[] || [];
-        const newEntry = {
-          id: data.id,
-          ...newRecurring,
-          categoria_nome: categories.find(c => c.id === newRecurring.categoria_id)?.nome || '',
-          contato_nome: contacts.find(c => c.id === newRecurring.contato_id)?.nome || ''
-        };
-        
-        queryClient.setQueryData(['recurrings'], [...currentData, newEntry]);
+        // Invalidate and refetch
+        queryClient.invalidateQueries({ queryKey: ['recurrences'] });
         
         toast({
-          title: editingRecurring ? "Recorrência atualizada com sucesso" : "Recorrência criada com sucesso",
+          title: editingRecurrence ? "Recorrência atualizada com sucesso" : "Recorrência criada com sucesso",
         });
+        
         setDialogOpen(false);
-        resetRecurringForm();
+        resetRecurrenceForm();
       } else {
         toast({
           title: "Erro ao salvar recorrência",
@@ -197,6 +207,7 @@ const Recorrentes = () => {
       }
     },
     onError: (error: Error) => {
+      console.error('Error saving recurrence:', error);
       toast({
         title: "Erro ao salvar recorrência",
         description: error.message,
@@ -205,48 +216,45 @@ const Recorrentes = () => {
     }
   });
 
-  // Update next date mutation
-  const updateNextDateMutation = useMutation({
-    mutationFn: async (data: { id: string; proxima_data: string }) => {
-      const recurring = recurringsData?.find(r => r.id === data.id);
-      if (!recurring) throw new Error("Recorrência não encontrada");
-      
-      return recurrencesAPI.save({
-        ...recurring,
-        proxima_data: data.proxima_data
-      });
+  // Delete recurrence mutation
+  const deleteRecurrenceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Simulate deletion since there's no actual delete endpoint
+      console.log('Deleting recurrence with ID:', id);
+      return { status: 'success', id };
     },
     onSuccess: (data) => {
-      if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['recurrings'] });
-        toast({
-          title: "Data atualizada",
-          description: "Próxima data atualizada com sucesso",
-        });
-        setEditNextDateDialog(false);
-        setSelectedRecurringId(null);
-        setNextDate(undefined);
-      } else {
-        toast({
-          title: "Erro ao atualizar data",
-          description: data.message || "Ocorreu um erro ao atualizar a data",
-          variant: "destructive",
-        });
-      }
+      // Update the local state to remove the deleted item
+      const currentData = queryClient.getQueryData<RecurrentTransaction[]>(['recurrences']) || [];
+      const updatedData = currentData.filter(item => item.id !== data.id);
+      queryClient.setQueryData(['recurrences'], updatedData);
+      
+      toast({
+        title: "Recorrência excluída com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao excluir recorrência",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   });
 
   // Toggle active status mutation
   const toggleActiveMutation = useMutation({
-    mutationFn: async (recurring: RecurringTransaction) => {
-      return recurrencesAPI.save({
-        ...recurring,
-        ativo: !recurring.ativo
-      });
+    mutationFn: (recurrence: RecurrentTransaction) => {
+      const updatedRecurrence = {
+        ...recurrence,
+        ativa: !recurrence.ativa
+      };
+      console.log('Toggling active status:', updatedRecurrence);
+      return recurrenciesAPI.save(updatedRecurrence);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        queryClient.invalidateQueries({ queryKey: ['recurrings'] });
+        queryClient.invalidateQueries({ queryKey: ['recurrences'] });
         toast({
           title: "Status atualizado com sucesso",
         });
@@ -257,537 +265,508 @@ const Recorrentes = () => {
           variant: "destructive",
         });
       }
-    }
-  });
-
-  // Delete recurring transaction mutation
-  const deleteRecurringMutation = useMutation({
-    mutationFn: async (id: string) => {
-      // This is a placeholder for a delete API that doesn't exist yet
-      // For now it will simulate a successful delete
-      return { status: 'success' };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurrings'] });
+    onError: (error: Error) => {
       toast({
-        title: "Recorrência excluída",
-        description: "Recorrência excluída com sucesso",
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
       });
     }
   });
 
+  const recurrences = recurrencesData || [];
   const categories = categoriesData || [];
   const contacts = contactsData || [];
 
-  // Reset form
-  const resetRecurringForm = () => {
-    setNewRecurring({
-      descricao: '',
-      valor: 0,
-      tipo: 'Despesa',
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+  
+  const resetFilters = () => {
+    setFilters({
+      tipo: 'all',
+      status: 'all',
+      categoria: 'all',
+      contact: 'all',
+    });
+  };
+
+  const resetRecurrenceForm = () => {
+    setNewRecurrence({
+      nome: '',
+      valor: '',
+      dia_vencimento: '',
       categoria_id: '',
       contato_id: '',
-      frequencia: 'monthly',
-      dia: '1',
-      proxima_data: format(new Date(), 'yyyy-MM-dd'),
-      ativo: true,
+      descricao: '',
+      tipo: 'Despesa',
+      frequencia: 'mensal',
+      ativa: true
     });
-    setEditingRecurring(null);
+    setEditingRecurrence(null);
   };
+  
+  const filteredRecurrences = recurrences.filter(recurrence => {
+    // Apply filters
+    if (filters.tipo !== 'all' && recurrence.tipo !== filters.tipo) return false;
+    if (filters.status !== 'all') {
+      if (filters.status === 'active' && !recurrence.ativa) return false;
+      if (filters.status === 'inactive' && recurrence.ativa) return false;
+    }
+    if (filters.categoria !== 'all' && recurrence.categoria_nome !== filters.categoria) return false;
+    if (filters.contact !== 'all' && recurrence.contato_nome !== filters.contact) return false;
+    return true;
+  });
 
-  // Handle save
-  const handleSaveRecurring = () => {
-    if (!newRecurring.descricao) {
+  const handleSaveRecurrence = () => {
+    // Validate form
+    if (!newRecurrence.nome || !newRecurrence.valor || !newRecurrence.dia_vencimento || !newRecurrence.categoria_id) {
       toast({
-        title: "Campo obrigatório",
-        description: "A descrição é obrigatória.",
+        title: "Campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!newRecurring.categoria_id) {
+    // Validate amount
+    const amount = parseFloat(newRecurrence.valor.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
       toast({
-        title: "Campo obrigatório",
-        description: "Selecione uma categoria.",
+        title: "Valor inválido",
+        description: "Por favor, informe um valor válido.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!newRecurring.contato_id) {
+    // Validate due day
+    const dueDay = parseInt(newRecurrence.dia_vencimento);
+    if (isNaN(dueDay) || dueDay < 1 || dueDay > 31) {
       toast({
-        title: "Campo obrigatório",
-        description: "Selecione um contato.",
+        title: "Dia de vencimento inválido",
+        description: "Por favor, informe um dia válido (1-31).",
         variant: "destructive",
       });
       return;
     }
 
-    const recurringToSave = {
-      ...(editingRecurring ? { id: editingRecurring.id } : {}),
-      ...newRecurring,
-      valor: Number(newRecurring.valor)
+    const recurrenceToSave = {
+      ...(editingRecurrence ? { id: editingRecurrence.id } : {}),
+      nome: newRecurrence.nome,
+      valor: amount,
+      dia_vencimento: dueDay,
+      categoria_id: newRecurrence.categoria_id,
+      contato_id: newRecurrence.contato_id,
+      descricao: newRecurrence.descricao,
+      tipo: newRecurrence.tipo,
+      frequencia: newRecurrence.frequencia,
+      ativa: newRecurrence.ativa
     };
-
-    saveRecurringMutation.mutate(recurringToSave);
+    
+    saveRecurrenceMutation.mutate(recurrenceToSave);
   };
-
-  // Handle edit
-  const handleEditRecurring = (recurring: RecurringTransaction) => {
-    setEditingRecurring(recurring);
-    setNewRecurring({
-      id: recurring.id,
-      descricao: recurring.descricao,
-      valor: recurring.valor,
-      tipo: recurring.tipo,
-      categoria_id: recurring.categoria_id,
-      contato_id: recurring.contato_id,
-      frequencia: recurring.frequencia,
-      dia: recurring.dia,
-      proxima_data: recurring.proxima_data,
-      ativo: recurring.ativo
+  
+  const handleEditRecurrence = (recurrence: RecurrentTransaction) => {
+    setEditingRecurrence(recurrence);
+    setNewRecurrence({
+      nome: recurrence.nome,
+      valor: recurrence.valor.toString(),
+      dia_vencimento: recurrence.dia_vencimento.toString(),
+      categoria_id: recurrence.categoria_id,
+      contato_id: recurrence.contato_id || '',
+      descricao: recurrence.descricao,
+      tipo: recurrence.tipo,
+      frequencia: recurrence.frequencia,
+      ativa: recurrence.ativa
     });
     setDialogOpen(true);
   };
 
-  // Handle delete
-  const handleDeleteRecurring = (id: string) => {
+  const handleDeleteRecurrence = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta recorrência?')) {
-      deleteRecurringMutation.mutate(id);
+      deleteRecurrenceMutation.mutate(id);
     }
   };
 
-  // Handle toggle active
-  const handleToggleActive = (recurring: RecurringTransaction) => {
-    toggleActiveMutation.mutate(recurring);
+  const toggleRecurrenceActive = (recurrence: RecurrentTransaction) => {
+    toggleActiveMutation.mutate(recurrence);
   };
 
-  // Handle edit next date
-  const handleEditNextDate = (id: string, currentDate: string) => {
-    setSelectedRecurringId(id);
-    const dateObj = new Date(currentDate);
-    setNextDate(dateObj);
-    setNextDateInput(format(dateObj, "dd/MM/yyyy"));
-    setEditNextDateDialog(true);
-  };
-
-  // Handle save next date
-  const handleSaveNextDate = () => {
-    if (!selectedRecurringId || !nextDate) return;
-
-    updateNextDateMutation.mutate({
-      id: selectedRecurringId,
-      proxima_data: format(nextDate, 'yyyy-MM-dd')
-    });
-  };
-
-  // Handle export
-  const handleExportRecurrings = () => {
-    const dataToExport = recurrings.map(recurring => ({
-      Descrição: recurring.descricao,
-      Valor: recurring.valor.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }),
-      Tipo: recurring.tipo,
-      Categoria: recurring.categoria_nome,
-      Contato: recurring.contato_nome,
-      Frequência: recurring.frequencia === 'monthly' ? 'Mensal' : 'Anual',
-      Dia: recurring.dia,
-      'Próxima Data': format(new Date(recurring.proxima_data), 'dd/MM/yyyy'),
-      Status: recurring.ativo ? 'Ativo' : 'Inativo'
-    }));
-
-    exportToExcel(dataToExport, 'recorrencias');
-
-    toast({
-      title: "Exportação concluída",
-      description: "As recorrências foram exportadas com sucesso.",
-    });
-  };
-
-  // Get frequency badge
-  const getFrequencyBadge = (frequency: string) => {
-    if (frequency === 'monthly') {
-      return <Badge className="bg-blue-500 hover:bg-blue-600">Mensal</Badge>;
-    } else if (frequency === 'yearly') {
-      return <Badge className="bg-purple-500 hover:bg-purple-600">Anual</Badge>;
+  // Get badge for transaction type
+  const getTypeBadge = (tipo: string) => {
+    if (tipo === 'Receita') {
+      return <Badge className="bg-green-500 hover:bg-green-600">{tipo}</Badge>;
+    } else {
+      return <Badge className="bg-blue-500 hover:bg-blue-600">{tipo}</Badge>;
     }
-    return null;
   };
 
-  // Get status badge
-  const getStatusBadge = (isActive: boolean) => {
-    return isActive ? 
-      <Badge className="bg-green-500">Ativo</Badge> : 
-      <Badge className="bg-gray-500">Inativo</Badge>;
+  // Get badge for status
+  const getStatusBadge = (ativa: boolean) => {
+    if (ativa) {
+      return <Badge className="bg-purple hover:bg-purple/90">Ativa</Badge>;
+    } else {
+      return <Badge variant="outline" className="text-gray-500">Inativa</Badge>;
+    }
   };
 
-  // Format currency
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
+  // Get formatted frequency
+  const getFrequency = (freq: string) => {
+    switch (freq) {
+      case 'mensal': return 'Mensal';
+      case 'quinzenal': return 'Quinzenal';
+      case 'semanal': return 'Semanal';
+      case 'anual': return 'Anual';
+      default: return freq;
+    }
   };
 
   // Render loading skeleton
   const renderLoadingSkeleton = () => (
     <>
-      {[1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="grid grid-cols-9 gap-2 p-4 border-b border-border items-center">
-          <div className="col-span-2">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-8 w-8 rounded-full" />
-          </div>
-          <div className="col-span-1">
-            <Skeleton className="h-8 w-8 rounded-full" />
-          </div>
-        </div>
+      {[1, 2, 3, 4].map((item) => (
+        <TableRow key={item}>
+          <TableCell><Skeleton className="h-6 w-3/4" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-8 rounded-full" /></TableCell>
+          <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto rounded-md" /></TableCell>
+        </TableRow>
       ))}
     </>
   );
 
   // Render error state
   const renderErrorState = () => (
-    <div className="p-8 text-center">
-      <div className="mx-auto h-12 w-12 text-red-500">X</div>
-      <h3 className="mt-2 text-lg font-medium text-gray-900">Erro ao carregar recorrências</h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Não foi possível carregar a lista de recorrências. Tente novamente mais tarde.
-      </p>
-      <div className="mt-6">
-        <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['recurrings'] })}
-          className="bg-purple hover:bg-purple/90"
-        >
-          Tentar novamente
-        </Button>
-      </div>
-    </div>
+    <TableRow>
+      <TableCell colSpan={8} className="text-center py-10">
+        <div className="flex flex-col items-center justify-center gap-2">
+          <X className="h-10 w-10 text-red-500" />
+          <h3 className="font-medium text-lg">Erro ao carregar recorrências</h3>
+          <p className="text-muted-foreground">
+            Não foi possível carregar a lista de recorrências. Tente novamente mais tarde.
+          </p>
+          <Button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['recurrences'] })}
+            className="mt-2 bg-purple hover:bg-purple/90"
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
   );
+
+  console.log('Filtered recurrences: ', filteredRecurrences);
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Lançamentos Recorrentes</h1>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleExportRecurrings}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
-          </Button>
-          
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-purple hover:bg-purple/90">
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Lançamento
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[525px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingRecurring ? 'Editar Lançamento Recorrente' : 'Novo Lançamento Recorrente'}
-                </DialogTitle>
-                <DialogDescription>
-                  Preencha as informações para criar um novo lançamento recorrente.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="tipo-lancamento">Tipo</Label>
-                    <Select
-                      value={newRecurring.tipo}
-                      onValueChange={(value: 'Despesa' | 'Receita') => setNewRecurring({ ...newRecurring, tipo: value })}
-                    >
-                      <SelectTrigger id="tipo-lancamento" className="w-full">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Despesa">Despesa</SelectItem>
-                        <SelectItem value="Receita">Receita</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="valor-lancamento">Valor</Label>
-                    <Input
-                      id="valor-lancamento"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={newRecurring.valor}
-                      onChange={(e) => setNewRecurring({ ...newRecurring, valor: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-purple hover:bg-purple/90">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Recorrência
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle className="text-purple-dark">
+                {editingRecurrence ? 'Editar Recorrência' : 'Nova Recorrência'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingRecurrence ? 'Edite as informações da recorrência.' : 'Preencha as informações para criar uma nova recorrência.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor={nameId}>Nome*</Label>
+                <Input
+                  id={nameId}
+                  value={newRecurrence.nome}
+                  onChange={(e) => setNewRecurrence({ ...newRecurrence, nome: e.target.value })}
+                  placeholder="Ex: Aluguel / Mensalidade"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={typeId}>Tipo*</Label>
+                  <Select
+                    value={newRecurrence.tipo}
+                    onValueChange={(value) => setNewRecurrence({ ...newRecurrence, tipo: value as 'Despesa' | 'Receita' })}
+                  >
+                    <SelectTrigger id={typeId}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Despesa">Despesa</SelectItem>
+                      <SelectItem value="Receita">Receita</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                <div>
-                  <Label htmlFor="descricao-lancamento">Descrição</Label>
+                <div className="space-y-2">
+                  <Label htmlFor={valueId}>Valor*</Label>
                   <Input
-                    id="descricao-lancamento"
-                    value={newRecurring.descricao}
-                    onChange={(e) => setNewRecurring({ ...newRecurring, descricao: e.target.value })}
-                    placeholder="Ex: Aluguel mensal"
+                    id={valueId}
+                    placeholder="0,00"
+                    value={newRecurrence.valor}
+                    onChange={(e) => setNewRecurrence({ ...newRecurrence, valor: e.target.value })}
                   />
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="categoria-lancamento">Categoria</Label>
-                    <Select 
-                      value={newRecurring.categoria_id} 
-                      onValueChange={(value) => setNewRecurring({ ...newRecurring, categoria_id: value })}
-                    >
-                      <SelectTrigger id="categoria-lancamento" className="w-full">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>{category.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="contato-lancamento">Contato</Label>
-                    <Select 
-                      value={newRecurring.contato_id} 
-                      onValueChange={(value) => setNewRecurring({ ...newRecurring, contato_id: value })}
-                    >
-                      <SelectTrigger id="contato-lancamento" className="w-full">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contacts.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>{contact.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={dueDayId}>Dia de vencimento*</Label>
+                  <Input
+                    id={dueDayId}
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="01-31"
+                    value={newRecurrence.dia_vencimento}
+                    onChange={(e) => setNewRecurrence({ ...newRecurrence, dia_vencimento: e.target.value })}
+                  />
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="frequencia-lancamento">Frequência</Label>
-                    <Select 
-                      value={newRecurring.frequencia} 
-                      onValueChange={(value: 'monthly' | 'yearly') => setNewRecurring({ ...newRecurring, frequencia: value })}
-                    >
-                      <SelectTrigger id="frequencia-lancamento" className="w-full">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="monthly">Mensal</SelectItem>
-                        <SelectItem value="yearly">Anual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="dia-lancamento">Dia</Label>
-                    <Input
-                      id="dia-lancamento"
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={newRecurring.dia}
-                      onChange={(e) => setNewRecurring({ ...newRecurring, dia: e.target.value })}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="ativo-lancamento" className="flex items-center gap-2">
-                    <Switch 
-                      id="ativo-lancamento"
-                      checked={newRecurring.ativo} 
-                      onCheckedChange={(checked) => setNewRecurring({ ...newRecurring, ativo: checked })} 
-                    />
-                    <span>Ativo</span>
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor={frequencyId}>Frequência*</Label>
+                  <Select
+                    value={newRecurrence.frequencia}
+                    onValueChange={(value) => setNewRecurrence({ ...newRecurrence, frequencia: value as any })}
+                  >
+                    <SelectTrigger id={frequencyId}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mensal">Mensal</SelectItem>
+                      <SelectItem value="quinzenal">Quinzenal</SelectItem>
+                      <SelectItem value="semanal">Semanal</SelectItem>
+                      <SelectItem value="anual">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => {
-                  setDialogOpen(false);
-                  resetRecurringForm();
-                }}>
-                  Cancelar
-                </Button>
-                <Button 
-                  className="bg-purple hover:bg-purple/90" 
-                  onClick={handleSaveRecurring}
-                  disabled={saveRecurringMutation.isPending}
-                >
-                  {saveRecurringMutation.isPending ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={categoryId}>Categoria*</Label>
+                  <Select
+                    value={newRecurrence.categoria_id}
+                    onValueChange={(value) => setNewRecurrence({ ...newRecurrence, categoria_id: value })}
+                  >
+                    <SelectTrigger id={categoryId}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>{category.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={contactId}>Contato</Label>
+                  <Select
+                    value={newRecurrence.contato_id}
+                    onValueChange={(value) => setNewRecurrence({ ...newRecurrence, contato_id: value })}
+                  >
+                    <SelectTrigger id={contactId}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {contacts.map((contact) => (
+                        <SelectItem key={contact.id} value={contact.id}>{contact.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={descriptionId}>Descrição</Label>
+                <Input
+                  id={descriptionId}
+                  value={newRecurrence.descricao}
+                  onChange={(e) => setNewRecurrence({ ...newRecurrence, descricao: e.target.value })}
+                  placeholder="Descrição ou observações adicionais"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setDialogOpen(false);
+                resetRecurrenceForm();
+              }}>Cancelar</Button>
+              <Button className="bg-purple hover:bg-purple/90" onClick={handleSaveRecurrence}>
+                {saveRecurrenceMutation.isPending ? (
+                  <>
+                    <span className="mr-2">⟳</span>
+                    Processando
+                  </>
+                ) : editingRecurrence ? 'Atualizar' : 'Criar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-      
+
       <Card>
         <CardContent className="p-6">
-          <div className="border rounded-md">
-            <div className="grid grid-cols-9 gap-2 p-4 bg-muted/50 font-medium">
-              <div className="col-span-2">Descrição</div>
-              <div className="col-span-1">Contato</div>
-              <div className="col-span-1">Categoria</div>
-              <div className="col-span-1">Dia</div>
-              <div className="col-span-1">Frequência</div>
-              <div className="col-span-1">Valor</div>
-              <div className="col-span-1">Status</div>
-              <div className="col-span-1">Próxima Data</div>
-            </div>
-            
-            {isLoading ? (
-              renderLoadingSkeleton()
-            ) : isError ? (
-              renderErrorState()
-            ) : recurrings.length === 0 ? (
-              <div className="p-8 text-center">
-                <h3 className="text-lg font-medium text-gray-900">Nenhum lançamento recorrente encontrado</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  Crie um novo lançamento recorrente para começar.
-                </p>
-              </div>
-            ) : (
-              recurrings.map((recurring) => (
-                <div 
-                  key={recurring.id} 
-                  className="grid grid-cols-9 gap-2 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">
+              Lista de Lançamentos Recorrentes
+            </h2>
+            <Button
+              variant="outline"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className="flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+              <ChevronDown className={`h-4 w-4 ${filterOpen ? "rotate-180 transform" : ""}`} />
+            </Button>
+          </div>
+          
+          {filterOpen && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+              <div className="space-y-2">
+                <Label htmlFor="filter-tipo">Tipo</Label>
+                <Select
+                  value={filters.tipo}
+                  onValueChange={(value) => handleFilterChange('tipo', value)}
                 >
-                  <div className="col-span-2 font-medium truncate">
-                    {recurring.descricao}
-                  </div>
-                  <div className="col-span-1 text-muted-foreground truncate">
-                    {recurring.contato_nome}
-                  </div>
-                  <div className="col-span-1 text-muted-foreground truncate">
-                    {recurring.categoria_nome}
-                  </div>
-                  <div className="col-span-1 text-muted-foreground">
-                    {recurring.dia}
-                  </div>
-                  <div className="col-span-1">
-                    {getFrequencyBadge(recurring.frequencia)}
-                  </div>
-                  <div className={`col-span-1 font-medium ${recurring.tipo === 'Receita' ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(recurring.valor)}
-                  </div>
-                  <div className="col-span-1">
-                    {getStatusBadge(recurring.ativo)}
-                  </div>
-                  <div className="col-span-1 flex items-center gap-2">
-                    <span>{format(new Date(recurring.proxima_data), 'dd/MM/yyyy')}</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Abrir menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditRecurring(recurring)}>
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditNextDate(recurring.id, recurring.proxima_data)}>
-                          Alterar próxima data
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleToggleActive(recurring)}>
-                          {recurring.ativo ? 'Desativar' : 'Ativar'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteRecurring(recurring.id)}
-                          className="text-red-600"
-                        >
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              ))
-            )}
+                  <SelectTrigger id="filter-tipo">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="Receita">Receitas</SelectItem>
+                    <SelectItem value="Despesa">Despesas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filter-status">Status</Label>
+                <Select
+                  value={filters.status}
+                  onValueChange={(value) => handleFilterChange('status', value)}
+                >
+                  <SelectTrigger id="filter-status">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativos</SelectItem>
+                    <SelectItem value="inactive">Inativos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filter-categoria">Categoria</Label>
+                <Select
+                  value={filters.categoria}
+                  onValueChange={(value) => handleFilterChange('categoria', value)}
+                >
+                  <SelectTrigger id="filter-categoria">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.nome}>{category.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" className="w-full" onClick={resetFilters}>
+                  Limpar Filtros
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Dia</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Frequência</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  renderLoadingSkeleton()
+                ) : isError ? (
+                  renderErrorState()
+                ) : filteredRecurrences.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10">
+                      <h3 className="font-medium">Nenhum lançamento recorrente encontrado</h3>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Crie uma nova recorrência para começar.
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRecurrences.map((recurrence) => (
+                    <TableRow key={recurrence.id} className="group hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-medium">
+                        {recurrence.nome}
+                      </TableCell>
+                      <TableCell>
+                        {formatCurrency(recurrence.valor)}
+                      </TableCell>
+                      <TableCell>{recurrence.dia_vencimento}</TableCell>
+                      <TableCell>{recurrence.categoria_nome || '-'}</TableCell>
+                      <TableCell>{getTypeBadge(recurrence.tipo)}</TableCell>
+                      <TableCell>{getFrequency(recurrence.frequencia)}</TableCell>
+                      <TableCell>{getStatusBadge(recurrence.ativa)}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                              <span className="sr-only">Abrir menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditRecurrence(recurrence)}>
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => toggleRecurrenceActive(recurrence)}
+                            >
+                              {recurrence.ativa ? 'Desativar' : 'Ativar'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteRecurrence(recurrence.id)}
+                              className="text-red-600"
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={editNextDateDialog} onOpenChange={setEditNextDateDialog}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Alterar Próxima Data</DialogTitle>
-            <DialogDescription>
-              Selecione a nova data para a próxima ocorrência.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="next-date">Próxima Data</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="next-date"
-                  value={nextDateInput}
-                  onChange={handleNextDateChange}
-                  placeholder="DD/MM/AAAA"
-                  maxLength={10}
-                />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant={"outline"} className="px-3">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={nextDate}
-                      onSelect={setNextDate}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditNextDateDialog(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              className="bg-purple hover:bg-purple/90" 
-              onClick={handleSaveNextDate}
-              disabled={updateNextDateMutation.isPending}
-            >
-              {updateNextDateMutation.isPending ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

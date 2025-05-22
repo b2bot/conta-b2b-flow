@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,6 +59,7 @@ interface Transaction {
   status?: string;
   categoria_id: string;
   contato_nome: string;
+  contato_id?: string;
 }
 
 // Define new transaction form
@@ -110,12 +112,13 @@ const Transacoes = () => {
     queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       const response = await transactionsAPI.list();
+      console.log('Fetched transactions:', response);
       return response.status === 'success' ? response.transacoes : [];
     }
   });
 
   // Fetch categories for dropdown
-  const { data: categoriesData = [] } = useQuery({
+  const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await categoriesAPI.list();
@@ -124,7 +127,7 @@ const Transacoes = () => {
   });
 
   // Fetch contacts for dropdown
-  const { data: contactsData = [] } = useQuery({
+  const { data: contacts = [] } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       const response = await contactsAPI.list();
@@ -132,9 +135,38 @@ const Transacoes = () => {
     }
   });
 
+  // Save transaction mutation
+  const saveTransactionMutation = useMutation({
+    mutationFn: async (transaction: any) => {
+      console.log('Saving transaction:', transaction);
+      return await transactionsAPI.save(transaction);
+    },
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast({
+          title: isEditing ? "Transação atualizada com sucesso" : "Transação criada com sucesso",
+        });
+        setDialogOpen(false);
+        resetTransactionForm();
+      } else {
+        toast({
+          title: "Erro ao salvar transação",
+          description: data.message || "Ocorreu um erro ao salvar a transação",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar transação",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const transactions = transactionsData || [];
-  const categories = categoriesData || [];
-  const contacts = contactsData || [];
 
   const nextMonth = () => {
     setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
@@ -202,22 +234,10 @@ const Transacoes = () => {
       return transactionsAPI.save(updatedTransaction);
     },
     onSuccess: (data) => {
+      console.log('Toggle paid status response:', data);
       if (data.status === 'success') {
-        // Invalidate the query to refetch and update the UI
+        // Force refetch the data to update the UI
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        
-        // Also update the transaction in the local state immediately
-        const transactionId = data.id;
-        const currentData = queryClient.getQueryData(['transactions']) as Transaction[];
-        if (currentData) {
-          const updatedData = currentData.map(t => {
-            if (t.id === transactionId) {
-              return { ...t, paid: !t.paid };
-            }
-            return t;
-          });
-          queryClient.setQueryData(['transactions'], updatedData);
-        }
         
         toast({
           title: "Status atualizado com sucesso",
@@ -244,13 +264,19 @@ const Transacoes = () => {
       // This is a placeholder - actual implementation would call the delete API
       // return await transactionsAPI.delete(id);
       // For now we'll simulate a successful delete
-      return { status: 'success' };
+      return { status: 'success', id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast({
-        title: "Transação excluída com sucesso",
-      });
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        // Update local state to remove the deleted item
+        const currentData = queryClient.getQueryData<Transaction[]>(['transactions']) || [];
+        const updatedData = currentData.filter(item => item.id !== data.id);
+        queryClient.setQueryData(['transactions'], updatedData);
+        
+        toast({
+          title: "Transação excluída com sucesso",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -295,7 +321,7 @@ const Transacoes = () => {
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
       recurrence: newTransaction.recurrence,
-      detalhes: newTransaction.detalhes
+      detalhes: newTransaction.detalhes || ""
     };
 
     console.log('Saving transaction:', transactionToSave);
@@ -330,9 +356,9 @@ const Transacoes = () => {
       data: transactionDate,
       tipo: transaction.tipo,
       categoria_id: transaction.categoria_id,
-      paymentTo: transaction.paymentTo,
+      paymentTo: transaction.contato_id || '',
       paid: transaction.paid,
-      recurrence: transaction.recurrence,
+      recurrence: transaction.recurrence || 'none',
       detalhes: transaction.detalhes || ''
     });
     
@@ -367,7 +393,7 @@ const Transacoes = () => {
         if (filters.paid === 'pending' && transaction.paid) return false;
       }
       if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-      if (filters.contact !== 'all' && transaction.paymentTo !== filters.contact) return false;
+      if (filters.contact !== 'all' && transaction.contato_nome !== filters.contact) return false;
 
       return true;
     });
@@ -492,7 +518,6 @@ const Transacoes = () => {
                         onSelect={(date) => date && setNewTransaction({ ...newTransaction, data: date })}
                         initialFocus
                         locale={ptBR}
-                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
