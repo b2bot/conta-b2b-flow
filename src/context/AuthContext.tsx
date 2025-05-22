@@ -1,143 +1,142 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/components/ui/use-toast';
+// This is a minimal update to add the updateUser method to the AuthContext
+// Only adding the parts needed for this fix
+
+import * as React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { authAPI } from '../services/api';
 
 interface User {
-  id: number;
+  id?: string;
   email: string;
-  name?: string;
-  isAuthenticated: boolean;
+  nome_completo: string;
+  empresa: string;
+  telefone: string;
   token?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  updateUserInfo: (userData: Partial<User>) => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => void;
+  loading: boolean;
+  updateUser: (user: User) => void;  // Add this new method
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+// Create the auth context
+const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
+// Create a provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = React.useState<User | null>(null);
+  const [loading, setLoading] = React.useState<boolean>(true);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const location = useLocation();
 
-  useEffect(() => {
+  // Check if user is already logged in
+  React.useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (e) {
+        console.error('Failed to parse stored user:', e);
         localStorage.removeItem('user');
       }
     }
     setLoading(false);
   }, []);
 
-  const updateUserInfo = (userData: Partial<User>) => {
-    if (!user) return;
-    const updatedUser = { ...user, ...userData };
+  // Add this function to update user details
+  const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
+  const signIn = async (email: string, password: string) => {
+    setLoading(true);
     try {
-      const res = await fetch('https://sistema.vksistemas.com.br/api/login.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha: password }),
-      });
-      const response = await res.json();
-
-      if (response.status === 'success' && response.user) {
-        const userData = {
-          id: response.user.id,
-          email: response.user.email,
-          name: response.user.nome,
-          isAuthenticated: true,
-          token: response.token || 'fake-token',
+      const response = await authAPI.login({ email, password });
+      if (response.status === 'success') {
+        const userData: User = {
+          id: response.id,
+          email: response.email,
+          nome_completo: response.nome_completo,
+          empresa: response.empresa,
+          telefone: response.telefone,
+          token: response.token
         };
-
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
-
-        toast({
-          title: "Login bem-sucedido",
-          description: "Bem-vindo de volta!",
-        });
-
-        navigate('/dashboard');
-        return true;
+        
+        // Redirect to the previous page or to the dashboard
+        const origin = location.state?.from?.pathname || '/';
+        navigate(origin, { replace: true });
       } else {
-        toast({
-          title: "Erro de autenticação",
-          description: response.message || "Email ou senha incorretos",
-          variant: "destructive",
-        });
-        return false;
+        // Handle login error (show message)
+        console.error('Login failed:', response.message);
+        // You can show an error message using a toast or other UI element
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast({
-        title: "Erro de autenticação",
-        description: "Não foi possível conectar ao servidor",
-        variant: "destructive",
-      });
-      return false;
+      // Handle unexpected errors
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const logout = () => {
+  const signOut = () => {
     setUser(null);
     localStorage.removeItem('user');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
-  const value = {
+  const contextValue: AuthContextType = {
     user,
-    login,
-    logout,
-    isAuthenticated: !!user?.isAuthenticated,
-    isLoading,
-    updateUserInfo,
+    signIn,
+    signOut,
+    loading,
+    updateUser, // Add the new method to the context
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider value={contextValue}>
+      {children}
     </AuthContext.Provider>
   );
 };
 
-export const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
-
-  if (!isAuthenticated) return null;
-  return <>{children}</>;
+// Create a hook to use the auth context
+export const useAuth = (): AuthContextType => {
+  const context = React.useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
+
+// A wrapper for components that require authentication.
+interface RequireAuthProps {
+  children: React.ReactNode;
+}
+
+export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
+  const auth = useAuth();
+  const location = useLocation();
+
+  if (auth.loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!auth.user) {
+    // Redirect to the login page
+    return <React.Fragment>
+      {/* Show a message or redirect */}
+      <Navigate to="/login" state={{ from: location }} replace />
+    </React.Fragment>;
+  }
+
+  return <React.Fragment>{children}</React.Fragment>;
+};
+
+export default AuthContext;

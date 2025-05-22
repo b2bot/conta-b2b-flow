@@ -44,7 +44,6 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format, addMonths, parse, isThisMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Checkbox } from '@/components/ui/checkbox';
 import { contactsAPI, transactionsAPI } from '@/services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -122,6 +121,7 @@ const Contatos = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const [birthDate, setBirthDate] = useState<Date | undefined>(undefined);
+  const [birthDateInput, setBirthDateInput] = useState<string>("");
 
   // Fetch contacts
   const { data: contactsData, isLoading, isError } = useQuery({
@@ -150,6 +150,30 @@ const Contatos = () => {
       }
     }
   });
+
+  // Update birthDate when input changes
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setBirthDateInput(value);
+    
+    if (value.length === 10) { // dd/MM/yyyy
+      try {
+        const parsedDate = parse(value, "dd/MM/yyyy", new Date());
+        if (!isNaN(parsedDate.getTime())) {
+          setBirthDate(parsedDate);
+        }
+      } catch (error) {
+        console.error("Invalid date format:", error);
+      }
+    }
+  };
+
+  // Update input when birthDate changes from calendar
+  React.useEffect(() => {
+    if (birthDate) {
+      setBirthDateInput(format(birthDate, "dd/MM/yyyy"));
+    }
+  }, [birthDate]);
 
   // Create/update contact mutation
   const saveContactMutation = useMutation({
@@ -256,6 +280,7 @@ const Contatos = () => {
       data_nascimento: '',
     });
     setBirthDate(undefined);
+    setBirthDateInput("");
     setEditingContact(null);
   };
 
@@ -310,9 +335,12 @@ const Contatos = () => {
     });
     
     if (contact.data_nascimento) {
-      setBirthDate(new Date(contact.data_nascimento));
+      const dateObj = new Date(contact.data_nascimento);
+      setBirthDate(dateObj);
+      setBirthDateInput(format(dateObj, "dd/MM/yyyy"));
     } else {
       setBirthDate(undefined);
+      setBirthDateInput("");
     }
     
     setDialogOpen(true);
@@ -458,7 +486,7 @@ const Contatos = () => {
                       value={newContact.tipo}
                       onValueChange={(value) => setNewContact({ ...newContact, tipo: value as any })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="type">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -515,29 +543,31 @@ const Contatos = () => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="birth_date">Data de Nascimento</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          id="birth_date"
-                          variant={"outline"}
-                          className={`w-full justify-start text-left font-normal ${
-                            !birthDate && "text-muted-foreground"
-                          }`}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {birthDate ? format(birthDate, "dd/MM/yyyy") : "Selecione uma data"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={birthDate}
-                          onSelect={setBirthDate}
-                          initialFocus
-                          locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="flex space-x-2">
+                      <Input
+                        id="birth_date"
+                        value={birthDateInput}
+                        onChange={handleBirthDateChange}
+                        placeholder="DD/MM/AAAA"
+                        maxLength={10}
+                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant={"outline"} className="px-3">
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={birthDate}
+                            onSelect={setBirthDate}
+                            initialFocus
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 </div>
 
@@ -678,7 +708,7 @@ const Contatos = () => {
                   value={filters.tipo}
                   onValueChange={(value) => handleFilterChange('tipo', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="type-filter">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
@@ -734,7 +764,7 @@ const Contatos = () => {
                   <div className="col-span-2 text-muted-foreground">
                     {contact.cpf_cnpj || "-"}
                   </div>
-                  <div className="col-span-2 text-muted-foreground">
+                  <div className="col-span-2 text-muted-foreground truncate">
                     {contact.email}
                   </div>
                   <div className="col-span-2 text-muted-foreground">

@@ -142,7 +142,7 @@ const CentroCustos = () => {
     setEditingCostCenter(null);
   };
   
-  const handleSaveCostCenter = () => {
+  const handleSaveCenter = () => {
     if (!newCostCenter.nome) {
       toast({
         title: "Campo obrigatório",
@@ -171,7 +171,7 @@ const CentroCustos = () => {
     saveCostCenterMutation.mutate(costCenterToSave);
   };
   
-  const handleEditCostCenter = (costCenter: CostCenter) => {
+  const handleEditCenter = (costCenter: CostCenter) => {
     console.log('Editing cost center:', costCenter);
     setEditingCostCenter(costCenter);
     setNewCostCenter({
@@ -181,7 +181,7 @@ const CentroCustos = () => {
     setDialogOpen(true);
   };
 
-  const handleDeleteCostCenter = (id: string) => {
+  const handleDeleteCenter = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este centro de custo?')) {
       deleteCostCenterMutation.mutate(id);
     }
@@ -296,7 +296,7 @@ const CentroCustos = () => {
                 </Button>
                 <Button 
                   className="bg-purple hover:bg-purple/90" 
-                  onClick={handleSaveCostCenter}
+                  onClick={handleSaveCenter}
                   disabled={saveCostCenterMutation.isPending}
                 >
                   {saveCostCenterMutation.isPending ? 'Salvando...' : 'Salvar'}
@@ -354,11 +354,11 @@ const CentroCustos = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditCostCenter(costCenter)}>
+                        <DropdownMenuItem onClick={() => handleEditCenter(costCenter)}>
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleDeleteCostCenter(costCenter.id)}
+                          onClick={() => handleDeleteCenter(costCenter.id)}
                           className="text-red-600"
                         >
                           Excluir

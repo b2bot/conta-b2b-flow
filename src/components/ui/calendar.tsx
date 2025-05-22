@@ -21,7 +21,6 @@ function Calendar({
   allowTextInput = true,
   onTextInputChange,
   selected,
-  onSelect,
   ...props
 }: CalendarProps) {
   const [inputValue, setInputValue] = React.useState<string>("");
@@ -47,8 +46,8 @@ function Calendar({
         
         // Check if it's a valid date
         if (!isNaN(parsedDate.getTime())) {
-          if (onSelect) {
-            (onSelect as SelectSingleEventHandler)(parsedDate);
+          if (props.mode === "single" && props.onSelect) {
+            (props.onSelect as SelectSingleEventHandler)(parsedDate);
           }
           if (onTextInputChange) {
             onTextInputChange(parsedDate);
@@ -115,7 +114,6 @@ function Calendar({
           IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
         }}
         selected={selected}
-        onSelect={onSelect}
         locale={ptBR}
         {...props}
       />

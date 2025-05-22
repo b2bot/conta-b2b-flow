@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -165,8 +166,8 @@ const Transacoes = () => {
         case 'receitas':
           setFilters(prev => ({ ...prev, tipo: 'Receita' }));
           break;
-        case 'despesas-fixas':
-          setFilters(prev => ({ ...prev, tipo: 'Despesa', categoria: 'Fixa' }));
+        case 'despesas':
+          setFilters(prev => ({ ...prev, tipo: 'Despesa' }));
           break;
         default:
           break;
@@ -252,6 +253,9 @@ const Transacoes = () => {
     onSuccess: (data) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast({
+          title: "Status atualizado com sucesso",
+        });
       } else {
         toast({
           title: "Erro ao atualizar status",
@@ -405,7 +409,7 @@ const Transacoes = () => {
                     value={newTransaction.tipo}
                     onValueChange={(value) => setNewTransaction({ ...newTransaction, tipo: value as 'Despesa' | 'Receita' })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="transaction-type">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -440,7 +444,7 @@ const Transacoes = () => {
                     value={newTransaction.categoria_id}
                     onValueChange={(value) => setNewTransaction({ ...newTransaction, categoria_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="category">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -456,7 +460,7 @@ const Transacoes = () => {
                     value={newTransaction.paymentTo}
                     onValueChange={(value) => setNewTransaction({ ...newTransaction, paymentTo: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="payment-to">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -469,10 +473,10 @@ const Transacoes = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Data</Label>
+                  <Label htmlFor="transaction-date">Data</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button id="transaction-date" variant="outline" className="w-full justify-start text-left font-normal">
                         <div>{format(newTransaction.data, 'dd/MM/yyyy')}</div>
                       </Button>
                     </PopoverTrigger>
@@ -494,7 +498,7 @@ const Transacoes = () => {
                     value={newTransaction.recurrence}
                     onValueChange={(value) => setNewTransaction({ ...newTransaction, recurrence: value as 'none' | 'monthly' | 'yearly' })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="recurrence">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -569,11 +573,11 @@ const Transacoes = () => {
             <Badge className={`${activeFilter === 'receitas' ? 'bg-green-600' : 'bg-green-500 hover:bg-green-600'}`}>Recebimentos</Badge>
           </ToggleGroupItem>
           <ToggleGroupItem 
-            value="despesas-fixas" 
+            value="despesas" 
             className="rounded-full"
-            onClick={() => applyQuickFilter('despesas-fixas')}
+            onClick={() => applyQuickFilter('despesas')}
           >
-            <Badge className={`${activeFilter === 'despesas-fixas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas Fixas</Badge>
+            <Badge className={`${activeFilter === 'despesas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas</Badge>
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -607,7 +611,7 @@ const Transacoes = () => {
                   value={filters.tipo}
                   onValueChange={(value) => handleFilterChange('tipo', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="filter-tipo">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -623,7 +627,7 @@ const Transacoes = () => {
                   value={filters.paid}
                   onValueChange={(value) => handleFilterChange('paid', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="filter-paid">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -639,7 +643,7 @@ const Transacoes = () => {
                   value={filters.categoria}
                   onValueChange={(value) => handleFilterChange('categoria', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="filter-categoria">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -656,7 +660,7 @@ const Transacoes = () => {
                   value={filters.contact}
                   onValueChange={(value) => handleFilterChange('contact', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="filter-contact">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
