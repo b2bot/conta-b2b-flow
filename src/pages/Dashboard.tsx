@@ -1,10 +1,21 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowRight, Plus, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
+import { useQuery } from '@tanstack/react-query';
+import { transactionsAPI } from '@/services/api';
+import { calculateTransactionSummary } from '@/utils/fileUtils';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Dummy data for the dashboard
 const MONTHS = [
@@ -12,62 +23,32 @@ const MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-// Mock financial data
-const generateFinancialData = (month: number, year: number) => {
-  // Generate some predictable but varying data based on month/year
-  const seed = month + year % 100;
-  
-  const incomePlanned = 50000 + (seed * 1043) % 20000;
-  const incomeReceived = incomePlanned * (0.7 + (seed % 30) / 100);
-  
-  const expensePlanned = 30000 + (seed * 967) % 15000;
-  const expensePaid = expensePlanned * (0.8 + (seed % 20) / 100);
-  
-  const balance = incomeReceived - expensePaid;
-  const expectedBalance = incomePlanned - expensePlanned;
-  
-  return {
-    incomePlanned: incomePlanned.toFixed(2),
-    incomeReceived: incomeReceived.toFixed(2),
-    incomePercentage: ((incomeReceived / incomePlanned) * 100).toFixed(1),
-    expensePlanned: expensePlanned.toFixed(2),
-    expensePaid: expensePaid.toFixed(2),
-    expensePercentage: ((expensePaid / expensePlanned) * 100).toFixed(1),
-    balance: balance.toFixed(2),
-    expectedBalance: expectedBalance.toFixed(2)
-  };
-};
-
-// Generate chart data for 3 months
-const generateChartData = (currentMonth: number, currentYear: number) => {
-  let data = [];
-  for (let i = -1; i <= 1; i++) {
-    let month = currentMonth + i;
-    let year = currentYear;
-    
-    if (month < 0) {
-      month += 12;
-      year -= 1;
-    } else if (month > 11) {
-      month -= 12;
-      year += 1;
-    }
-    
-    const financialData = generateFinancialData(month, year);
-    data.push({
-      month: `${MONTHS[month].substring(0, 3)}/${year}`,
-      planned: parseFloat(financialData.expectedBalance),
-      actual: parseFloat(financialData.balance)
-    });
-  }
-  return data;
-};
-
 const Dashboard = () => {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [financialSummary, setFinancialSummary] = useState({
+    received: 0,
+    expected: 0,
+    paid: 0,
+    profit: 0,
+    receivedPercentage: 0,
+    paidPercentage: 0,
+    missingReceived: 0,
+    missingPaid: 0
+  });
+  const [chartData, setChartData] = useState([]);
+  const [monthSummaries, setMonthSummaries] = useState([]);
   
+  // Fetch transactions
+  const { data: transactionsData = [], isLoading } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: async () => {
+      const response = await transactionsAPI.list();
+      return response.status === 'success' ? response.transacoes : [];
+    }
+  });
+
   const nextMonth = () => {
     if (currentMonth === 11) {
       setCurrentMonth(0);
@@ -85,31 +66,136 @@ const Dashboard = () => {
       setCurrentMonth(currentMonth - 1);
     }
   };
+
+  useEffect(() => {
+    if (!transactionsData.length) return;
+    
+    // Filter transactions for current month/year
+    const currentMonthTransactions = transactionsData.filter(transaction => {
+      const transactionDate = new Date(transaction.data);
+      return (
+        transactionDate.getMonth() === currentMonth && 
+        transactionDate.getFullYear() === currentYear
+      );
+    });
+    
+    // Calculate summary for current month
+    const summary = calculateTransactionSummary(currentMonthTransactions);
+    
+    // Add percentage calculations
+    const receivedPercentage = summary.expected > 0 
+      ? Math.round((summary.received / summary.expected) * 100) 
+      : 0;
+    
+    // Calculate the expected expenses (total of expense transactions)
+    const expectedExpenses = currentMonthTransactions
+      .filter(t => t.tipo === 'Despesa')
+      .reduce((sum, t) => sum + parseFloat(t.valor), 0);
+    
+    // Calculate the paid expenses
+    const paidExpenses = currentMonthTransactions
+      .filter(t => t.tipo === 'Despesa' && t.paid)
+      .reduce((sum, t) => sum + parseFloat(t.valor), 0);
+    
+    const paidPercentage = expectedExpenses > 0 
+      ? Math.round((paidExpenses / expectedExpenses) * 100) 
+      : 0;
+    
+    setFinancialSummary({
+      ...summary,
+      receivedPercentage,
+      paidPercentage,
+      missingReceived: summary.expected - summary.received,
+      missingPaid: expectedExpenses - paidExpenses,
+      expectedExpenses
+    });
+    
+    // Generate cash flow data for current month and past 4 months
+    const cashFlowData = [];
+    for (let i = -3; i <= 0; i++) {
+      let month = currentMonth + i;
+      let year = currentYear;
+      
+      if (month < 0) {
+        month += 12;
+        year -= 1;
+      }
+      
+      // Filter transactions for this month/year
+      const monthTransactions = transactionsData.filter(transaction => {
+        const transactionDate = new Date(transaction.data);
+        return (
+          transactionDate.getMonth() === month && 
+          transactionDate.getFullYear() === year
+        );
+      });
+      
+      // Calculate received and paid amounts
+      const received = monthTransactions
+        .filter(t => t.tipo === 'Receita' && t.paid)
+        .reduce((sum, t) => sum + parseFloat(t.valor), 0);
+        
+      const paid = monthTransactions
+        .filter(t => t.tipo === 'Despesa' && t.paid)
+        .reduce((sum, t) => sum + parseFloat(t.valor), 0);
+        
+      cashFlowData.push({
+        month: `${MONTHS[month].substring(0, 3)}/${year.toString().slice(-2)}`,
+        received,
+        paid,
+        balance: received - paid
+      });
+    }
+    
+    setChartData(cashFlowData);
+    
+    // Generate month summaries for the past 3 months
+    const summaries = [];
+    for (let i = -2; i <= 0; i++) {
+      let month = currentMonth + i;
+      let year = currentYear;
+      
+      if (month < 0) {
+        month += 12;
+        year -= 1;
+      }
+      
+      // Filter transactions for this month/year
+      const monthTransactions = transactionsData.filter(transaction => {
+        const transactionDate = new Date(transaction.data);
+        return (
+          transactionDate.getMonth() === month && 
+          transactionDate.getFullYear() === year
+        );
+      });
+      
+      // Calculate summary for this month
+      const monthSummary = calculateTransactionSummary(monthTransactions);
+      
+      summaries.push({
+        month: `${MONTHS[month]} ${year}`,
+        shortMonth: `${MONTHS[month].substring(0, 3)}/${year}`,
+        received: monthSummary.received,
+        paid: monthSummary.paid,
+        balance: monthSummary.received - monthSummary.paid
+      });
+    }
+    
+    setMonthSummaries(summaries);
+    
+  }, [transactionsData, currentMonth, currentYear]);
   
-  const financialData = generateFinancialData(currentMonth, currentYear);
-  const chartData = generateChartData(currentMonth, currentYear);
-  
-  // Calculate the highest value for chart scaling
-  const maxValue = Math.max(
-    ...chartData.map(d => Math.max(Math.abs(d.planned), Math.abs(d.actual)))
-  );
-  
-  // Function to determine bar height percentage
-  const getBarHeight = (value: number) => {
-    const percentage = (Math.abs(value) / maxValue) * 100;
-    return `${percentage}%`;
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-purple-dark">Dashboard</h1>
-        <Link to="/transacoes">
-          <Button className="bg-purple hover:bg-purple/90">
-            <Plus size={18} className="mr-2" />
-            Nova Transação
-          </Button>
-        </Link>
       </div>
 
       {/* Month selector */}
@@ -123,159 +209,191 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      {/* Main stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Expected result */}
-        <Card>
+      {/* Main dashboard content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Planned / Actual Progress Card */}
+        <Card className="col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground flex items-center">
-              Resultado previsto no mês
+            <CardTitle className="text-lg flex items-center">
+              Previsto / realizado no mês
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button className="ml-1">
-                      <Info size={14} className="text-muted-foreground" />
+                      <Info size={16} className="text-muted-foreground" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Receitas previstas - Despesas previstas</p>
+                    <p>Percentual de recebimentos e pagamentos realizados em relação ao previsto</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple">
-              R${parseFloat(financialData.expectedBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Cash flow chart */}
-        <Card className="col-span-1 md:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Fluxo de caixa</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-24 w-full flex items-end justify-around px-4">
-              {chartData.map((data, index) => (
-                <div key={index} className="flex flex-col items-center w-1/3">
-                  <div className="relative h-20 w-full flex justify-center items-end">
-                    {/* Planned bar */}
-                    <div 
-                      className="absolute w-4 bg-gray-200 rounded-t-sm" 
-                      style={{ 
-                        height: getBarHeight(data.planned),
-                        bottom: data.planned >= 0 ? '50%' : 'auto',
-                        top: data.planned < 0 ? '50%' : 'auto'
-                      }}
-                    />
-                    
-                    {/* Actual bar */}
-                    <div 
-                      className={`absolute w-8 rounded-t-sm ${data.actual >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ 
-                        height: getBarHeight(data.actual),
-                        bottom: data.actual >= 0 ? '50%' : 'auto',
-                        top: data.actual < 0 ? '50%' : 'auto'
-                      }}
-                    />
-                    
-                    {/* Centerline */}
-                    <div className="absolute h-[1px] w-full bg-gray-300 top-1/2"></div>
-                  </div>
-                  <span className="text-xs mt-1">{data.month}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Current balance */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Saldo atual</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple">
-              R${parseFloat(financialData.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
             <div className="text-sm text-muted-foreground">
-              Previsão do mês: R${parseFloat(financialData.expectedBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {MONTHS[currentMonth]}/{currentYear} - Caixa
             </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6">
+              {/* Received progress circle */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="10"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#10B981"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${financialSummary.receivedPercentage * 2.83} 283`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-green-500 font-medium">Recebido</span>
+                    <span className="text-3xl font-bold">
+                      {financialSummary.receivedPercentage}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="w-full mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-500">Recebido</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.received)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-300">Falta</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.missingReceived)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Previsto</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.expected)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Paid progress circle */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="10"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#EF4444"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${financialSummary.paidPercentage * 2.83} 283`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-red-500 font-medium">Pago</span>
+                    <span className="text-3xl font-bold">
+                      {financialSummary.paidPercentage}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="w-full mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-500">Pago</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.paid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-300">Falta</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.missingPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Previsto</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.expectedExpenses)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cash Flow Chart Card */}
+        <Card className="col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Fluxo de caixa</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {MONTHS[currentMonth]}/{currentYear} - Caixa
+            </div>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <RechartsTooltip
+                  formatter={(value, name) => {
+                    return [formatCurrency(value), name === 'received' ? 'Recebido' : name === 'paid' ? 'Pago' : 'Saldo'];
+                  }}
+                  labelFormatter={(label) => `Mês: ${label}`}
+                />
+                <Bar dataKey="received" stackId="a" fill="#10B981" name="Recebido" />
+                <Bar dataKey="paid" stackId="a" fill="#EF4444" name="Pago" />
+                <Line type="monotone" dataKey="balance" stroke="#6B46C1" strokeWidth={2} name="Saldo" dot={{ r: 4 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Income/Expense section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Income */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Recebimentos</span>
-              <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                {financialData.incomePercentage}%
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Recebido</div>
-                <div className="font-medium">R${parseFloat(financialData.incomeReceived).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+      {/* Monthly summary cards */}
+      <div className="grid grid-cols-1 gap-4">
+        {monthSummaries.map((summary, index) => (
+          <Card key={index} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">{summary.month}</h3>
+                  <p className="text-sm text-muted-foreground">Resumo financeiro</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm">
+                    <span className="text-green-500 font-medium">Recebimentos:</span> {formatCurrency(summary.received)}
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-red-500 font-medium">Despesas:</span> {formatCurrency(summary.paid)}
+                  </p>
+                  <p className="text-sm font-bold">
+                    <span className="text-purple">Saldo:</span> {formatCurrency(summary.balance)}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-3 h-3 rounded-full bg-purple"></div>
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Previsto</div>
-                <div className="font-medium">R${parseFloat(financialData.incomePlanned).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              </div>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-green-500 rounded-full" 
-                style={{width: `${financialData.incomePercentage}%`}}
-              ></div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Expenses */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Despesas</span>
-              <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
-                {financialData.expensePercentage}%
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Pago</div>
-                <div className="font-medium">R${parseFloat(financialData.expensePaid).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-3 h-3 rounded-full bg-purple"></div>
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Previsto</div>
-                <div className="font-medium">R${parseFloat(financialData.expensePlanned).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              </div>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-red-500 rounded-full" 
-                style={{width: `${financialData.expensePercentage}%`}}
-              ></div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
