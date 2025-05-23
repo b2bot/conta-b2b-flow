@@ -10,8 +10,8 @@ import {
   ChevronDown,
   MoreVertical,
   Loader,
-  Import,
-  Export
+  FileUp,
+  FileDown,
 } from 'lucide-react';
 import {
   Dialog,
@@ -467,14 +467,14 @@ const Transacoes = () => {
             className="bg-white"
             onClick={handleExportTransactions}
           >
-            <Export size={18} className="mr-2" />
+            <FileDown size={18} className="mr-2" />
             Exportar
           </Button>
           
           <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="bg-white">
-                <Import size={18} className="mr-2" />
+                <FileUp size={18} className="mr-2" />
                 Importar
               </Button>
             </DialogTrigger>
