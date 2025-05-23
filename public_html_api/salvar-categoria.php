@@ -14,21 +14,49 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Obter dados do corpo da requisição
-$data = json_decode(file_get_contents('php://input'), true);
+// Verificar token de autenticação
+$headers = getallheaders();
+$token = isset($headers['Authorization']) ? str_replace('Bearer ', '', $headers['Authorization']) : null;
 
-// Verificar se os dados necessários foram fornecidos
-if (!isset($data['nome']) || !isset($data['tipo'])) {
-    http_response_code(400);
+if (!$token) {
+    http_response_code(401);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Nome e tipo são obrigatórios',
-        'error_code' => 'MISSING_REQUIRED_FIELDS'
+        'message' => 'Token de autenticação não fornecido',
+        'error_code' => 'AUTH_TOKEN_MISSING'
     ]);
     exit;
 }
 
 try {
+    // Verificar se o token é válido
+    $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE token = :token");
+    $stmt->execute(['token' => $token]);
+    
+    if (!$stmt->fetch()) {
+        http_response_code(401);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Token inválido ou expirado',
+            'error_code' => 'INVALID_TOKEN'
+        ]);
+        exit;
+    }
+
+    // Obter dados do corpo da requisição
+    $data = json_decode(file_get_contents('php://input'), true);
+
+    // Verificar se os dados necessários foram fornecidos
+    if (!isset($data['nome']) || !isset($data['tipo'])) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Nome e tipo são obrigatórios',
+            'error_code' => 'MISSING_REQUIRED_FIELDS'
+        ]);
+        exit;
+    }
+
     // Verificar se é uma atualização ou inserção
     if (isset($data['id']) && $data['id'] > 0) {
         // Atualizar categoria existente

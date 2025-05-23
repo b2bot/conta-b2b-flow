@@ -123,7 +123,7 @@ const Recorrentes = () => {
       try {
         const response = await recurrencesAPI.list();
         if (response.status === 'success') {
-          return response.recorrencias || [];
+          return response.recorrentes || [];
         } else {
           throw new Error(response.message || 'Error fetching recurring transactions');
         }

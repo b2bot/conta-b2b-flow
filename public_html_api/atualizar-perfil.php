@@ -1,5 +1,5 @@
 <?php
-// Arquivo atualizar-usuario.php - Atualiza dados do usuário
+// Arquivo atualizar-perfil.php - Atualiza dados do usuário
 require_once 'headers.php';
 require_once 'conexao.php';
 

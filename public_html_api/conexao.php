@@ -1,23 +1,17 @@
 <?php
 // Arquivo conexao.php - Conexão com o banco de dados
-// Configurações de conexão com o banco de dados
-$host = 'localhost';
-$db = 'base_sistema';
-$user = 'base_sistema'; // Substituir pelo usuário real do banco
-$pass = 'Vk@280112'; // Substituir pela senha real do banco
-$charset = 'utf8mb4';
-
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES => false,
-];
-
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
+    $host = 'localhost';
+    $dbname = 'base_sistema';
+    $username = 'base_sistema'; // Substitua pelo seu usuário do banco
+    $password = 'Vk@280112'; // Substitua pela sua senha do banco
+    
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 } catch (PDOException $e) {
-    // Em caso de erro na conexão, retorna JSON com erro
+    // Em produção, não exibir detalhes do erro
     http_response_code(500);
     echo json_encode([
         'status' => 'error',

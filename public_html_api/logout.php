@@ -1,5 +1,5 @@
 <?php
-// Arquivo listar-centro-custos.php - Lista todos os centros de custo
+// Arquivo logout.php - Encerra a sessão do usuário
 require_once 'headers.php';
 require_once 'conexao.php';
 
@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Verificar token de autenticação
+// Verificar se o token de autenticação está presente
 $headers = getallheaders();
 $token = isset($headers['Authorization']) ? str_replace('Bearer ', '', $headers['Authorization']) : null;
 
@@ -29,36 +29,28 @@ if (!$token) {
 }
 
 try {
-    // Verificar se o token é válido
-    $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE token = :token");
+    // Invalidar o token no banco de dados
+    $stmt = $pdo->prepare("UPDATE usuarios SET token = NULL WHERE token = :token");
     $stmt->execute(['token' => $token]);
     
-    if (!$stmt->fetch()) {
-        http_response_code(401);
+    // Verificar se algum registro foi afetado
+    if ($stmt->rowCount() > 0) {
         echo json_encode([
-            'status' => 'error',
-            'message' => 'Token inválido ou expirado',
-            'error_code' => 'INVALID_TOKEN'
+            'status' => 'success',
+            'message' => 'Logout realizado com sucesso'
         ]);
-        exit;
+    } else {
+        // Token não encontrado, mas não é um erro crítico
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Sessão já encerrada ou token inválido'
+        ]);
     }
-    
-    // Buscar todos os centros de custo
-    $stmt = $pdo->prepare("SELECT id, nome, criado_em FROM centro_custos ORDER BY nome");
-    $stmt->execute();
-    $centros_custo = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Retornar os centros de custo
-    echo json_encode([
-        'status' => 'success',
-        'centros_custo' => $centros_custo
-    ]);
-
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Erro ao listar centros de custo',
+        'message' => 'Erro ao processar logout',
         'error_code' => 'DB_ERROR'
     ]);
     exit;

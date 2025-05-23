@@ -1,7 +1,18 @@
 <?php
-// Arquivo dados-usuario.php - Retorna dados do usuário autenticado
+// Arquivo user.php - Retorna dados do usuário autenticado
 require_once 'headers.php';
 require_once 'conexao.php';
+
+// Verificar se é uma requisição POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Método não permitido',
+        'error_code' => 'METHOD_NOT_ALLOWED'
+    ]);
+    exit;
+}
 
 // Verificar se o token de autenticação está presente
 $headers = getallheaders();
@@ -18,10 +29,10 @@ if (!$token) {
 }
 
 try {
-    // Buscar usuário pelo token (simplificado, em produção usar JWT)
+    // Buscar usuário pelo token
     $stmt = $pdo->prepare("SELECT id, nome, email, funcao FROM usuarios WHERE token = :token");
     $stmt->execute(['token' => $token]);
-    $usuario = $stmt->fetch();
+    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$usuario) {
         http_response_code(401);
@@ -38,8 +49,10 @@ try {
         'status' => 'success',
         'user' => [
             'id' => $usuario['id'],
-            'nome' => $usuario['nome'],
+            'nome_completo' => $usuario['nome'],
             'email' => $usuario['email'],
+            'empresa' => '', // Adicionar campo se existir na tabela
+            'telefone' => '', // Adicionar campo se existir na tabela
             'funcao' => $usuario['funcao'] ?? 'Usuário'
         ]
     ]);
