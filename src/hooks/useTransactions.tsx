@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -131,23 +130,25 @@ export const useTransactions = () => {
   // Delete transaction mutation
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Simulate delete API call until it's implemented
-      return { status: 'success', id };
+      // Use the real delete API endpoint
+      return await transactionsAPI.delete(id);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        // Remove deleted transaction from cache
-        queryClient.setQueryData<Transaction[]>(
-          ['transactions'], 
-          (oldData: Transaction[] | undefined) => 
-            oldData ? oldData.filter(item => item.id !== data.id) : []
-        );
+        // Force data refetch to get updated transaction list
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
         
         toast({
           title: "Transação excluída com sucesso",
         });
         
         refetch();
+      } else {
+        toast({
+          title: "Erro ao excluir transação",
+          description: data.message || "Ocorreu um erro ao excluir a transação",
+          variant: "destructive",
+        });
       }
     },
     onError: (error: Error) => {

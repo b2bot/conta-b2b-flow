@@ -129,6 +129,14 @@ export const transactionsAPI = {
       body: JSON.stringify(transaction),
     });
     return handleResponse(res);
+  },
+  delete: async (id: string) => {
+    const res = await fetch(`${API_BASE_URL}/excluir-transacao.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ id }),
+    });
+    return handleResponse(res);
   }
 };
 

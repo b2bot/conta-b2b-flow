@@ -100,6 +100,10 @@ try {
     $dataTransacao = trim($data['data']);
     $categoria_id = isset($data['categoria_id']) ? $data['categoria_id'] : null;
     $centro_custo_id = isset($data['centro_custo_id']) ? $data['centro_custo_id'] : null;
+    $contato_id = isset($data['contato_id']) ? $data['contato_id'] : null;
+    $paid = isset($data['paid']) ? (bool)$data['paid'] : false;
+    $recurrence = isset($data['recurrence']) ? $data['recurrence'] : 'none';
+    $detalhes = isset($data['detalhes']) ? $data['detalhes'] : '';
 
     // Verificar se é uma atualização ou inserção
     if (isset($data['id']) && intval($data['id']) > 0) {
@@ -110,7 +114,11 @@ try {
                 valor = :valor, 
                 tipo = :tipo, 
                 categoria_id = :categoria_id, 
-                centro_custo_id = :centro_custo_id, 
+                centro_custo_id = :centro_custo_id,
+                contato_id = :contato_id,
+                paid = :paid,
+                recurrence = :recurrence,
+                detalhes = :detalhes,
                 data = :data 
             WHERE id = :id
         ");
@@ -120,6 +128,10 @@ try {
             'tipo' => $tipo,
             'categoria_id' => $categoria_id,
             'centro_custo_id' => $centro_custo_id,
+            'contato_id' => $contato_id,
+            'paid' => $paid ? 1 : 0,
+            'recurrence' => $recurrence,
+            'detalhes' => $detalhes,
             'data' => $dataTransacao,
             'id' => $data['id']
         ]);
@@ -129,9 +141,9 @@ try {
         // Inserir nova transação
         $stmt = $pdo->prepare("
             INSERT INTO transacoes 
-                (descricao, valor, tipo, categoria_id, centro_custo_id, data, criado_em) 
+                (descricao, valor, tipo, categoria_id, centro_custo_id, contato_id, paid, recurrence, detalhes, data, criado_em) 
             VALUES 
-                (:descricao, :valor, :tipo, :categoria_id, :centro_custo_id, :data, NOW())
+                (:descricao, :valor, :tipo, :categoria_id, :centro_custo_id, :contato_id, :paid, :recurrence, :detalhes, :data, NOW())
         ");
         $stmt->execute([
             'descricao' => $descricao,
@@ -139,17 +151,70 @@ try {
             'tipo' => $tipo,
             'categoria_id' => $categoria_id,
             'centro_custo_id' => $centro_custo_id,
+            'contato_id' => $contato_id,
+            'paid' => $paid ? 1 : 0,
+            'recurrence' => $recurrence,
+            'detalhes' => $detalhes,
             'data' => $dataTransacao
         ]);
         $id = $pdo->lastInsertId();
         $message = 'Transação criada com sucesso';
     }
 
+    // Buscar a transação atualizada para retornar ao frontend
+    $stmt = $pdo->prepare("
+        SELECT 
+            t.id, t.tipo, t.valor, t.descricao, t.data, t.criado_em,
+            t.paid, t.recurrence, t.detalhes,
+            c.id as categoria_id, c.nome as categoria_nome, 
+            cc.id as centro_custo_id, cc.nome as centro_custo_nome,
+            ct.id as contato_id, ct.nome as contato_nome
+        FROM transacoes t
+        LEFT JOIN categorias c ON t.categoria_id = c.id
+        LEFT JOIN centro_custos cc ON t.centro_custo_id = cc.id
+        LEFT JOIN contatos ct ON t.contato_id = ct.id
+        WHERE t.id = :id
+    ");
+    $stmt->execute(['id' => $id]);
+    $transacao = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Processar a transação para garantir campos consistentes
+    if ($transacao) {
+        // Garantir que paid seja booleano
+        $transacao['paid'] = (bool)($transacao['paid'] ?? false);
+        
+        // Definir status com base no tipo e paid
+        if ($transacao['paid']) {
+            $transacao['status'] = ($transacao['tipo'] === 'Despesa') ? 'Pago' : 'Recebido';
+        } else {
+            $transacao['status'] = ($transacao['tipo'] === 'Despesa') ? 'A pagar' : 'A receber';
+        }
+        
+        // Garantir que recurrence tenha um valor padrão se for nulo
+        if (!isset($transacao['recurrence']) || $transacao['recurrence'] === null) {
+            $transacao['recurrence'] = 'none';
+        }
+        
+        // Garantir que detalhes não seja nulo
+        if (!isset($transacao['detalhes']) || $transacao['detalhes'] === null) {
+            $transacao['detalhes'] = '';
+        }
+        
+        // Garantir que contato_id e contato_nome não sejam nulos
+        if (!isset($transacao['contato_id']) || $transacao['contato_id'] === null) {
+            $transacao['contato_id'] = '';
+        }
+        if (!isset($transacao['contato_nome']) || $transacao['contato_nome'] === null) {
+            $transacao['contato_nome'] = '';
+        }
+    }
+
     // Retornar sucesso
     echo json_encode([
         'status' => 'success',
         'message' => $message,
-        'id' => $id
+        'id' => $id,
+        'transacao' => $transacao
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
