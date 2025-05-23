@@ -1,3 +1,4 @@
+
 import * as XLSX from 'xlsx';
 
 export interface ImportResult {
@@ -57,4 +58,42 @@ export const exportToExcel = (data: any[], filename: string): void => {
   
   // Generate and download file
   XLSX.writeFile(workbook, `${filename}.xlsx`);
+};
+
+// Function to format currency
+export const formatCurrency = (value: number): string => {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+};
+
+// Calculate summary for transactions
+export const calculateTransactionSummary = (transactions: any[]) => {
+  let received = 0;
+  let expected = 0;
+  let paid = 0;
+
+  transactions.forEach(transaction => {
+    const value = Number(transaction.valor);
+    if (transaction.tipo === 'Receita') {
+      expected += value;
+      if (transaction.paid) {
+        received += value;
+      }
+    } else if (transaction.tipo === 'Despesa') {
+      if (transaction.paid) {
+        paid += value;
+      }
+    }
+  });
+
+  const profit = received - paid;
+
+  return {
+    received,
+    expected,
+    paid,
+    profit
+  };
 };

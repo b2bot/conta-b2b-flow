@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from "@/components/ui/skeleton";
+import { UseMutationResult } from '@tanstack/react-query';
 
 interface Transaction {
   id: string;
@@ -35,6 +36,7 @@ interface Transaction {
   detalhes?: string;
   status?: string;
   categoria_id: string;
+  contato_id?: string;
 }
 
 interface TransactionTableProps {
@@ -51,6 +53,8 @@ interface TransactionTableProps {
   toggleTransactionPaid: (transaction: Transaction) => void;
   handleEditTransaction: (transaction: Transaction) => void;
   handleDeleteTransaction: (id: string) => void;
+  saveTransactionMutation?: UseMutationResult<any, Error, any>;
+  deleteTransactionMutation?: UseMutationResult<any, Error, any>;
 }
 
 const TransactionTable = ({
@@ -62,6 +66,8 @@ const TransactionTable = ({
   toggleTransactionPaid,
   handleEditTransaction,
   handleDeleteTransaction,
+  saveTransactionMutation,
+  deleteTransactionMutation,
 }: TransactionTableProps) => {
   // Format currency for display
   const formatCurrency = (value: number) => {
