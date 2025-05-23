@@ -12,14 +12,14 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, user, loading } = useAuth();
 
   // Redireciona se já estiver autenticado
   useEffect(() => {
-    if (isAuthenticated) {
+    if (user) {
       navigate('/dashboard');
     }
-  }, [isAuthenticated, navigate]);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +36,7 @@ const Login = () => {
     try {
       console.log('Submitting login form with email:', email);
       await login(email, password);
-      // O redirecionamento deve ocorrer dentro do AuthContext após o login bem-sucedido
+      // O redirecionamento já ocorre no AuthContext após o login
     } catch (error: any) {
       console.error('Login submission error:', error);
       toast({
@@ -103,9 +103,9 @@ const Login = () => {
               <Button 
                 type="submit"
                 className="w-full bg-purple hover:bg-purple/90" 
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? (
+                {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Entrando...
