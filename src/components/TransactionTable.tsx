@@ -6,7 +6,8 @@ import {
   X, 
   ChevronDown, 
   ChevronUp, 
-  MoreVertical 
+  MoreVertical,
+  FileUp 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +56,8 @@ interface TransactionTableProps {
   handleDeleteTransaction: (id: string) => void;
   saveTransactionMutation?: UseMutationResult<any, Error, any>;
   deleteTransactionMutation?: UseMutationResult<any, Error, any>;
+  handleDuplicateTransaction?: (transaction: Transaction) => void;
+  handleAttachFile?: (transactionId: string) => void;
 }
 
 const TransactionTable = ({
@@ -68,6 +71,8 @@ const TransactionTable = ({
   handleDeleteTransaction,
   saveTransactionMutation,
   deleteTransactionMutation,
+  handleDuplicateTransaction,
+  handleAttachFile,
 }: TransactionTableProps) => {
   // Format currency for display
   const formatCurrency = (value: number) => {
@@ -209,6 +214,16 @@ const TransactionTable = ({
                     <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
                       Editar
                     </DropdownMenuItem>
+                    {handleDuplicateTransaction && (
+                      <DropdownMenuItem onClick={() => handleDuplicateTransaction(transaction)}>
+                        Duplicar
+                      </DropdownMenuItem>
+                    )}
+                    {handleAttachFile && (
+                      <DropdownMenuItem onClick={() => handleAttachFile(transaction.id)}>
+                        Anexar
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       onClick={() => handleDeleteTransaction(transaction.id)}

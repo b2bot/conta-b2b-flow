@@ -8,7 +8,6 @@ import {
   Plus, 
   Filter,
   ChevronDown,
-  MoreVertical,
   Loader,
   FileUp,
   FileDown,
@@ -248,6 +247,7 @@ const Transacoes = () => {
       if (data.status === 'success') {
         // Force refetch the data to update the UI
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        refetch(); // Explicitly force a refetch to ensure UI updates
         
         toast({
           title: "Status atualizado com sucesso",
@@ -346,6 +346,44 @@ const Transacoes = () => {
     if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
       deleteTransactionMutation.mutate(id);
     }
+  };
+
+  const handleDuplicateTransaction = (transaction: Transaction) => {
+    // Create a new transaction based on the selected one, but without ID
+    const duplicatedTransaction = {
+      ...transaction,
+      id: undefined, // Remove ID to create a new transaction
+      data: format(new Date(), 'yyyy-MM-dd'), // Set date to today
+      paid: false // Reset paid status
+    };
+    
+    // Convert to form model for editing
+    setNewTransaction({
+      descricao: duplicatedTransaction.descricao,
+      valor: duplicatedTransaction.valor.toString(),
+      data: new Date(),
+      tipo: duplicatedTransaction.tipo,
+      categoria_id: duplicatedTransaction.categoria_id,
+      paymentTo: duplicatedTransaction.contato_id || '',
+      paid: false,
+      recurrence: duplicatedTransaction.recurrence || 'none',
+      detalhes: duplicatedTransaction.detalhes || ''
+    });
+    
+    setIsEditing(false); // It's a new transaction, not an edit
+    setDialogOpen(true);
+    
+    toast({
+      title: "Transação duplicada",
+      description: "Edite os detalhes conforme necessário e salve.",
+    });
+  };
+
+  const handleAttachFile = (transactionId: string) => {
+    toast({
+      title: "Funcionalidade em desenvolvimento",
+      description: "A funcionalidade para anexar arquivos estará disponível em breve.",
+    });
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
@@ -722,7 +760,7 @@ const Transacoes = () => {
             className="rounded-full"
             onClick={() => applyQuickFilter('despesas')}
           >
-            <Badge className={`${activeFilter === 'despesas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas Fixas</Badge>
+            <Badge className={`${activeFilter === 'despesas' ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'}`}>Despesas</Badge>
           </ToggleGroupItem>
         </ToggleGroup>
 
@@ -832,6 +870,8 @@ const Transacoes = () => {
         handleDeleteTransaction={handleDeleteTransaction}
         saveTransactionMutation={saveTransactionMutation}
         deleteTransactionMutation={deleteTransactionMutation}
+        handleDuplicateTransaction={handleDuplicateTransaction}
+        handleAttachFile={handleAttachFile}
       />
     </div>
   );
