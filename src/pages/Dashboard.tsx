@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/chart";
 import { Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Dummy data for the dashboard
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -179,9 +178,209 @@ const Dashboard = () => {
     }).format(value);
   };
 
-  return (
+return (
     <div className="space-y-6 animate-fade-in">
-      {/* ...rest of JSX remains unchanged */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-purple-dark">Dashboard</h1>
+      </div>
+
+      {/* Month selector */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-border">
+        <Button variant="ghost" onClick={prevMonth} className="text-purple">
+          <ArrowLeft size={20} />
+        </Button>
+        <h2 className="text-xl font-bold text-purple-dark">{MONTHS[currentMonth]}/{currentYear}</h2>
+        <Button variant="ghost" onClick={nextMonth} className="text-purple">
+          <ArrowRight size={20} />
+        </Button>
+      </div>
+
+      {/* Main dashboard content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Planned / Actual Progress Card */}
+        <Card className="col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              Previsto / realizado no mês
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="ml-1">
+                      <Info size={16} className="text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Percentual de recebimentos e pagamentos realizados em relação ao previsto</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {MONTHS[currentMonth]}/{currentYear} - Caixa
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6">
+              {/* Received progress circle */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="10"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#10B981"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${financialSummary.receivedPercentage * 2.83} 283`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-green-500 font-medium">Recebido</span>
+                    <span className="text-3xl font-bold">
+                      {financialSummary.receivedPercentage}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="w-full mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-500">Recebido</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.received)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-300">Falta</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.missingReceived)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Previsto</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.expected)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Paid progress circle */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="10"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#EF4444"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${financialSummary.paidPercentage * 2.83} 283`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-red-500 font-medium">Pago</span>
+                    <span className="text-3xl font-bold">
+                      {financialSummary.paidPercentage}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="w-full mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-500">Pago</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.paid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-300">Falta</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.missingPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Previsto</span>
+                    <span className="font-medium">{formatCurrency(financialSummary.expectedExpenses)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cash Flow Chart Card */}
+        <Card className="col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Fluxo de caixa</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {MONTHS[currentMonth]}/{currentYear} - Caixa
+            </div>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <RechartsTooltip
+                  formatter={(value, name) => {
+                    return [formatCurrency(value), name === 'received' ? 'Recebido' : name === 'paid' ? 'Pago' : 'Saldo'];
+                  }}
+                  labelFormatter={(label) => `Mês: ${label}`}
+                />
+                <Bar dataKey="received" stackId="a" fill="#10B981" name="Recebido" />
+                <Bar dataKey="paid" stackId="a" fill="#EF4444" name="Pago" />
+                <Line type="monotone" dataKey="balance" stroke="#6B46C1" strokeWidth={2} name="Saldo" dot={{ r: 4 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly summary cards */}
+      <div className="grid grid-cols-1 gap-4">
+        {monthSummaries.map((summary, index) => (
+          <Card key={index} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">{summary.month}</h3>
+                  <p className="text-sm text-muted-foreground">Resumo financeiro</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm">
+                    <span className="text-green-500 font-medium">Recebimentos:</span> {formatCurrency(summary.received)}
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-red-500 font-medium">Despesas:</span> {formatCurrency(summary.paid)}
+                  </p>
+                  <p className="text-sm font-bold">
+                    <span className="text-purple">Saldo:</span> {formatCurrency(summary.balance)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
