@@ -1,3 +1,4 @@
+
 <?php
 // Arquivo listar-transacoes.php - Lista todas as transações
 require_once 'headers.php';
@@ -43,19 +44,28 @@ try {
         exit;
     }
     
-    // Buscar todas as transações
+    // Buscar todas as transações com informações de contato e categoria
     $stmt = $pdo->prepare("
         SELECT 
             t.id, t.tipo, t.valor, t.descricao, t.data, t.criado_em,
-            c.nome as categoria_nome, cc.nome as centro_custo_nome,
-            t.categoria_id, t.centro_custo_id
+            t.paid, t.recurrence, t.detalhes,
+            c.nome as categoria_nome, c.id as categoria_id,
+            cc.nome as centro_custo_nome, cc.id as centro_custo_id,
+            con.nome as contato_nome, con.id as contato_id
         FROM transacoes t
         LEFT JOIN categorias c ON t.categoria_id = c.id
         LEFT JOIN centro_custos cc ON t.centro_custo_id = cc.id
+        LEFT JOIN contatos con ON t.contato_id = con.id
         ORDER BY t.data DESC
     ");
     $stmt->execute();
     $transacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Convert boolean values properly
+    foreach ($transacoes as &$transacao) {
+        $transacao['paid'] = (bool)$transacao['paid'];
+        $transacao['valor'] = (float)$transacao['valor'];
+    }
 
     // Retornar as transações
     echo json_encode([
@@ -67,7 +77,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Erro ao listar transações',
+        'message' => 'Erro ao listar transações: ' . $e->getMessage(),
         'error_code' => 'DB_ERROR'
     ]);
     exit;

@@ -1,3 +1,4 @@
+
 <?php
 // Arquivo salvar-transacao.php - Salva ou atualiza uma transação
 require_once 'headers.php';
@@ -57,6 +58,9 @@ try {
         exit;
     }
 
+    // Get paid status - default to false if not set
+    $paid = isset($data['paid']) ? (bool)$data['paid'] : false;
+
     // Verificar se é uma atualização ou inserção
     if (isset($data['id']) && $data['id'] > 0) {
         // Atualizar transação existente
@@ -66,8 +70,12 @@ try {
                 valor = :valor, 
                 tipo = :tipo, 
                 categoria_id = :categoria_id, 
+                contato_id = :contato_id,
                 centro_custo_id = :centro_custo_id, 
-                data = :data 
+                data = :data,
+                paid = :paid,
+                recurrence = :recurrence,
+                detalhes = :detalhes
             WHERE id = :id
         ");
         
@@ -76,8 +84,12 @@ try {
             'valor' => $data['valor'],
             'tipo' => $data['tipo'],
             'categoria_id' => $data['categoria_id'] ?? null,
+            'contato_id' => $data['contato_id'] ?? null,
             'centro_custo_id' => $data['centro_custo_id'] ?? null,
             'data' => $data['data'],
+            'paid' => $paid ? 1 : 0,
+            'recurrence' => $data['recurrence'] ?? 'none',
+            'detalhes' => $data['detalhes'] ?? '',
             'id' => $data['id']
         ]);
         
@@ -87,9 +99,9 @@ try {
         // Inserir nova transação
         $stmt = $pdo->prepare("
             INSERT INTO transacoes 
-                (descricao, valor, tipo, categoria_id, centro_custo_id, data, criado_em) 
+                (descricao, valor, tipo, categoria_id, contato_id, centro_custo_id, data, paid, recurrence, detalhes, criado_em) 
             VALUES 
-                (:descricao, :valor, :tipo, :categoria_id, :centro_custo_id, :data, NOW())
+                (:descricao, :valor, :tipo, :categoria_id, :contato_id, :centro_custo_id, :data, :paid, :recurrence, :detalhes, NOW())
         ");
         
         $stmt->execute([
@@ -97,8 +109,12 @@ try {
             'valor' => $data['valor'],
             'tipo' => $data['tipo'],
             'categoria_id' => $data['categoria_id'] ?? null,
+            'contato_id' => $data['contato_id'] ?? null,
             'centro_custo_id' => $data['centro_custo_id'] ?? null,
-            'data' => $data['data']
+            'data' => $data['data'],
+            'paid' => $paid ? 1 : 0,
+            'recurrence' => $data['recurrence'] ?? 'none',
+            'detalhes' => $data['detalhes'] ?? ''
         ]);
         
         $id = $pdo->lastInsertId();
@@ -116,7 +132,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Erro ao salvar transação',
+        'message' => 'Erro ao salvar transação: ' . $e->getMessage(),
         'error_code' => 'DB_ERROR'
     ]);
     exit;

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
@@ -44,7 +45,15 @@ import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import TransactionTable from '@/components/TransactionTable';
 import FileImport from '@/components/FileImport';
-import { exportToExcel, calculateTransactionSummary, formatCurrency } from '@/utils/fileUtils';
+import { exportToExcel, exportToCSV, calculateTransactionSummary, formatCurrency } from '@/utils/fileUtils';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Define transaction type
 interface Transaction {
@@ -91,6 +100,7 @@ const Transacoes = () => {
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  
   // Estado local para armazenar os totais calculados
   const [financialSummary, setFinancialSummary] = useState({
     received: 0,
@@ -119,7 +129,7 @@ const Transacoes = () => {
 
   // Fetch transactions
   const { data: transactionsData = [], isLoading, refetch } = useQuery({
-    queryKey: ['transactions', format(currentMonth, 'yyyy-MM')],
+    queryKey: ['transactions'],
     queryFn: async () => {
       const response = await transactionsAPI.list();
       console.log('Fetched transactions:', response);
@@ -176,13 +186,47 @@ const Transacoes = () => {
     }
   });
 
-  const transactions = transactionsData || [];
+  // Filter transactions by current month
+  const transactions = useMemo(() => {
+    return (transactionsData || []).map(transaction => {
+      // Ensure each transaction has the paid property correctly set
+      return {
+        ...transaction,
+        paid: transaction.paid === true || transaction.status === 'Pago' || transaction.status === 'Recebido',
+      };
+    });
+  }, [transactionsData]);
 
-  // Atualiza os totais sempre que as transações mudarem
+  // Filter transactions by month and other filters
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      // Filter by month/year
+      const transactionDate = new Date(transaction.data);
+      if (
+        transactionDate.getMonth() !== currentMonth.getMonth() ||
+        transactionDate.getFullYear() !== currentMonth.getFullYear()
+      ) {
+        return false;
+      }
+
+      // Apply other filters
+      if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
+      if (filters.paid !== 'all') {
+        if (filters.paid === 'paid' && !transaction.paid) return false;
+        if (filters.paid === 'pending' && transaction.paid) return false;
+      }
+      if (filters.categoria !== 'all' && transaction.categoria_id !== filters.categoria) return false;
+      if (filters.contact !== 'all' && transaction.contato_id !== filters.contact) return false;
+
+      return true;
+    });
+  }, [transactions, currentMonth, filters]);
+
+  // Calculate financial summary based on filtered transactions
   useEffect(() => {
-    const summary = calculateTransactionSummary(transactions);
+    const summary = calculateTransactionSummary(filteredTransactions);
     setFinancialSummary(summary);
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   const nextMonth = () => {
     setCurrentMonth(prevMonth => addMonths(prevMonth, 1));
@@ -242,31 +286,32 @@ const Transacoes = () => {
 
   const togglePaidStatusMutation = useMutation({
     mutationFn: (transaction: Transaction) => {
+      // Create a new object with the updated paid status
       const updatedTransaction = {
         ...transaction,
-        paid: !transaction.paid
+        paid: !transaction.paid,
+        // Update status field if it exists
+        status: !transaction.paid ? 
+          (transaction.tipo === 'Despesa' ? 'Pago' : 'Recebido') : 
+          (transaction.tipo === 'Despesa' ? 'A pagar' : 'A receber')
       };
+      
       console.log('Toggling paid status:', updatedTransaction);
       return transactionsAPI.save(updatedTransaction);
     },
     onSuccess: (data) => {
       console.log('Toggle paid status response:', data);
       if (data.status === 'success') {
-        // Força a atualização dos dados
+        // Force data refetch to get updated transaction list
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         
-        // Busca as transações atualizadas imediatamente
-        refetch().then(result => {
-          if (result.data) {
-            // Recalcula os totais com os dados atualizados
-            const updatedSummary = calculateTransactionSummary(result.data);
-            setFinancialSummary(updatedSummary);
-          }
-        });
-        
+        // Show success toast
         toast({
           title: "Status atualizado com sucesso",
         });
+        
+        // Force refetch of transactions to ensure we have the latest data
+        refetch();
       } else {
         toast({
           title: "Erro ao atualizar status",
@@ -293,18 +338,19 @@ const Transacoes = () => {
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        // Update local state to remove the deleted item
-        const currentData = queryClient.getQueryData<Transaction[]>(['transactions']) || [];
-        const updatedData = currentData.filter(item => item.id !== data.id);
-        queryClient.setQueryData(['transactions'], updatedData);
-        
-        // Recalcula os totais após a exclusão
-        const updatedSummary = calculateTransactionSummary(updatedData);
-        setFinancialSummary(updatedSummary);
+        // Remove deleted transaction from cache
+        queryClient.setQueryData<Transaction[]>(
+          ['transactions'], 
+          (oldData: Transaction[] | undefined) => 
+            oldData ? oldData.filter(item => item.id !== data.id) : []
+        );
         
         toast({
           title: "Transação excluída com sucesso",
         });
+        
+        // Force refetch to ensure we have consistent data
+        refetch();
       }
     },
     onError: (error: Error) => {
@@ -433,7 +479,7 @@ const Transacoes = () => {
   };
 
   const handleExportTransactions = () => {
-    const dataToExport = filteredTransactionsNoDuplicates.map(t => ({
+    const dataToExport = filteredTransactions.map(t => ({
       Data: format(new Date(t.data), 'dd/MM/yyyy'),
       Descrição: t.descricao,
       Contato: t.contato_nome || '',
@@ -470,49 +516,6 @@ const Transacoes = () => {
   const toggleExpandTransaction = (id: string) => {
     setExpandedTransaction(expandedTransaction === id ? null : id);
   };
-
-  // Effect to handle filtering based on quick filters
-  useEffect(() => {
-    refetch();
-  }, [filters, refetch]);
-
-  const filteredTransactionsNoDuplicates = React.useMemo(() => {
-    // First apply the filters
-    const filtered = transactions.filter(transaction => {
-      // Filter by month/year
-      const transactionDate = new Date(transaction.data);
-      if (
-        transactionDate.getMonth() !== currentMonth.getMonth() ||
-        transactionDate.getFullYear() !== currentMonth.getFullYear()
-      ) {
-        return false;
-      }
-
-      // Apply other filters
-      if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
-      if (filters.paid !== 'all') {
-        if (filters.paid === 'paid' && !transaction.paid) return false;
-        if (filters.paid === 'pending' && transaction.paid) return false;
-      }
-      if (filters.categoria !== 'all' && transaction.categoria_nome !== filters.categoria) return false;
-      if (filters.contact !== 'all' && transaction.contato_nome !== filters.contact) return false;
-
-      return true;
-    });
-
-    // Now remove duplicates using transaction id
-    const uniqueTransactions = [];
-    const seenIds = new Set();
-    
-    for (const transaction of filtered) {
-      if (!seenIds.has(transaction.id)) {
-        seenIds.add(transaction.id);
-        uniqueTransactions.push(transaction);
-      }
-    }
-    
-    return uniqueTransactions;
-  }, [transactions, currentMonth, filters]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -568,7 +571,7 @@ const Transacoes = () => {
                       value={newTransaction.tipo}
                       onValueChange={(value) => setNewTransaction({...newTransaction, tipo: value as 'Despesa' | 'Receita'})}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="tipo">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -602,6 +605,7 @@ const Transacoes = () => {
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
+                          id="data"
                           variant="outline"
                           className="w-full justify-start text-left font-normal"
                         >
@@ -624,7 +628,7 @@ const Transacoes = () => {
                       value={newTransaction.categoria_id}
                       onValueChange={(value) => setNewTransaction({...newTransaction, categoria_id: value})}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="categoria">
                         <SelectValue placeholder="Selecione a categoria" />
                       </SelectTrigger>
                       <SelectContent>
@@ -646,7 +650,7 @@ const Transacoes = () => {
                     value={newTransaction.paymentTo}
                     onValueChange={(value) => setNewTransaction({...newTransaction, paymentTo: value})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="contato">
                       <SelectValue placeholder="Selecione o contato" />
                     </SelectTrigger>
                     <SelectContent>
@@ -664,7 +668,7 @@ const Transacoes = () => {
                     value={newTransaction.paid ? "paid" : "pending"}
                     onValueChange={(value) => setNewTransaction({...newTransaction, paid: value === "paid"})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="status">
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -683,7 +687,7 @@ const Transacoes = () => {
                     value={newTransaction.recurrence}
                     onValueChange={(value) => setNewTransaction({...newTransaction, recurrence: value as 'none' | 'monthly' | 'yearly'})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="recurrence">
                       <SelectValue placeholder="Selecione a recorrência" />
                     </SelectTrigger>
                     <SelectContent>
@@ -794,7 +798,7 @@ const Transacoes = () => {
                     value={filters.tipo}
                     onValueChange={(value) => handleFilterChange('tipo', value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="filter-tipo">
                       <SelectValue placeholder="Todos os tipos" />
                     </SelectTrigger>
                     <SelectContent>
@@ -810,7 +814,7 @@ const Transacoes = () => {
                     value={filters.paid}
                     onValueChange={(value) => handleFilterChange('paid', value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="filter-status">
                       <SelectValue placeholder="Todos os status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -826,13 +830,13 @@ const Transacoes = () => {
                     value={filters.categoria}
                     onValueChange={(value) => handleFilterChange('categoria', value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="filter-categoria">
                       <SelectValue placeholder="Todas as categorias" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas as categorias</SelectItem>
                       {categories.map(category => (
-                        <SelectItem key={category.id} value={category.nome}>
+                        <SelectItem key={category.id} value={category.id}>
                           {category.nome}
                         </SelectItem>
                       ))}
@@ -845,13 +849,13 @@ const Transacoes = () => {
                     value={filters.contact}
                     onValueChange={(value) => handleFilterChange('contact', value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="filter-contato">
                       <SelectValue placeholder="Todos os contatos" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os contatos</SelectItem>
                       {contacts.map(contact => (
-                        <SelectItem key={contact.id} value={contact.nome}>
+                        <SelectItem key={contact.id} value={contact.id}>
                           {contact.nome}
                         </SelectItem>
                       ))}
@@ -873,112 +877,100 @@ const Transacoes = () => {
           <Loader className="animate-spin mr-2" />
           <span>Carregando transações...</span>
         </div>
-      ) : filteredTransactionsNoDuplicates.length === 0 ? (
+      ) : filteredTransactions.length === 0 ? (
         <div className="text-center py-10 border rounded-lg bg-gray-50">
           <p className="text-gray-500">Nenhuma transação encontrada para este período.</p>
           <p className="text-gray-400 text-sm mt-1">Clique em "Nova Transação" para começar.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2">Data</th>
-                <th className="text-left py-2">Descrição</th>
-                <th className="text-left py-2">Contato</th>
-                <th className="text-right py-2">Valor</th>
-                <th className="text-center py-2">Status</th>
-                <th className="text-right py-2">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactionsNoDuplicates.map(transaction => (
-                <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3">{format(new Date(transaction.data), 'dd/MM/yyyy')}</td>
-                  <td className="py-3">
-                    <div className="flex items-center">
-                      <button 
-                        onClick={() => toggleExpandTransaction(transaction.id)}
-                        className="mr-2 focus:outline-none"
-                      >
-                        <ChevronDown 
-                          size={16} 
-                          className={`transition-transform ${expandedTransaction === transaction.id ? 'rotate-180' : ''}`} 
-                        />
-                      </button>
-                      <span>{transaction.descricao}</span>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>Descrição</TableHead>
+              <TableHead>Contato</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredTransactions.map(transaction => (
+              <TableRow key={transaction.id}>
+                <TableCell>{format(new Date(transaction.data), 'dd/MM/yyyy')}</TableCell>
+                <TableCell>
+                  <div className="flex items-center">
+                    <button 
+                      onClick={() => toggleExpandTransaction(transaction.id)}
+                      className="mr-2 focus:outline-none"
+                    >
+                      <ChevronDown 
+                        size={16} 
+                        className={`transition-transform ${expandedTransaction === transaction.id ? 'rotate-180' : ''}`} 
+                      />
+                    </button>
+                    <span>{transaction.descricao}</span>
+                  </div>
+                  {expandedTransaction === transaction.id && (
+                    <div className="mt-2 ml-6 text-sm text-gray-500">
+                      <p><strong>Categoria:</strong> {transaction.categoria_nome}</p>
+                      {transaction.detalhes && <p><strong>Detalhes:</strong> {transaction.detalhes}</p>}
                     </div>
-                    {expandedTransaction === transaction.id && (
-                      <div className="mt-2 ml-6 text-sm text-gray-500">
-                        <p><strong>Categoria:</strong> {transaction.categoria_nome}</p>
-                        {transaction.detalhes && <p><strong>Detalhes:</strong> {transaction.detalhes}</p>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3">{transaction.contato_nome || '-'}</td>
-                  <td className="py-3 text-right">
-                    <span className={transaction.tipo === 'Despesa' ? 'text-red-500' : 'text-green-500'}>
-                      {formatCurrency(transaction.valor)}
-                    </span>
-                  </td>
-                  <td className="py-3 text-center">
-                    {transaction.paid ? (
-                      <Badge variant="outline" className={transaction.tipo === 'Despesa' ? 'bg-red-100' : 'bg-green-100'}>
-                        {transaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
-                      </Badge>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className={transaction.tipo === 'Despesa' ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'}
-                        onClick={() => toggleTransactionPaid(transaction)}
-                      >
-                        {transaction.tipo === 'Despesa' ? 'Pagar' : 'Receber'}
+                  )}
+                </TableCell>
+                <TableCell>{transaction.contato_nome || '-'}</TableCell>
+                <TableCell className="text-right">
+                  <span className={transaction.tipo === 'Despesa' ? 'text-red-500' : 'text-green-500'}>
+                    {formatCurrency(transaction.valor)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  {transaction.paid ? (
+                    <Badge variant="outline" className={transaction.tipo === 'Despesa' ? 'bg-red-100' : 'bg-green-100'}>
+                      {transaction.tipo === 'Despesa' ? 'Pago' : 'Recebido'}
+                    </Badge>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className={transaction.tipo === 'Despesa' ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'}
+                      onClick={() => toggleTransactionPaid(transaction)}
+                    >
+                      {transaction.tipo === 'Despesa' ? 'Pagar' : 'Receber'}
+                    </Button>
+                  )}
+                </TableCell>
+                <TableCell className="flex justify-end space-x-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
                       </Button>
-                    )}
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleEditTransaction(transaction)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                          <path d="m15 5 4 4"/>
-                        </svg>
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleDuplicateTransaction(transaction)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                        </svg>
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEditTransaction(transaction)}>
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicateTransaction(transaction)}>
+                        Duplicar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleAttachFile(transaction.id)}>
+                        Anexar
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
                         onClick={() => handleDeleteTransaction(transaction.id)}
+                        className="text-red-600"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18"/>
-                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                          <line x1="10" x2="10" y1="11" y2="17"/>
-                          <line x1="14" x2="14" y1="11" y2="17"/>
-                        </svg>
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   );

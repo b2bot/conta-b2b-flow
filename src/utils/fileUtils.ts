@@ -73,13 +73,16 @@ export const calculateTransactionSummary = (transactions: any[]) => {
   let received = 0;
   let expected = 0;
   let paid = 0;
+  let profit = 0;
 
   transactions.forEach(transaction => {
     const value = Number(transaction.valor);
+    
     if (transaction.tipo === 'Receita') {
-      expected += value;
       if (transaction.paid) {
         received += value;
+      } else {
+        expected += value;
       }
     } else if (transaction.tipo === 'Despesa') {
       if (transaction.paid) {
@@ -88,7 +91,8 @@ export const calculateTransactionSummary = (transactions: any[]) => {
     }
   });
 
-  const profit = received - paid;
+  // Calculate profit (received income - paid expenses)
+  profit = received - paid;
 
   return {
     received,
@@ -96,4 +100,36 @@ export const calculateTransactionSummary = (transactions: any[]) => {
     paid,
     profit
   };
+};
+
+/**
+ * Export transactions to CSV file
+ */
+export const exportToCSV = (data: any[], filename: string): void => {
+  let csvContent = "data:text/csv;charset=utf-8,";
+  
+  // Add headers
+  const headers = Object.keys(data[0]);
+  csvContent += headers.join(",") + "\r\n";
+  
+  // Add rows
+  data.forEach(row => {
+    const rowValues = headers.map(header => {
+      const value = row[header]?.toString().replace(/,/g, ";") || "";
+      // Quote values that contain commas, newlines or quotes
+      return value.includes(",") || value.includes("\n") || value.includes('"') 
+        ? `"${value.replace(/"/g, '""')}"` 
+        : value;
+    });
+    csvContent += rowValues.join(",") + "\r\n";
+  });
+  
+  // Create download link and trigger download
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };

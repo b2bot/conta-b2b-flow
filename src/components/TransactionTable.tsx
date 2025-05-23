@@ -139,13 +139,13 @@ const TransactionTable = ({
 
   return (
     <div className="border rounded-md bg-white">
-      <div className="grid grid-cols-7 gap-4 p-4 bg-muted/50 font-medium">
+      <div className="grid grid-cols-6 gap-4 p-4 bg-muted/50 font-medium">
         <div className="col-span-1">Data</div>
-        <div className="col-span-2">Descrição</div>
+        <div className="col-span-1">Descrição</div>
         <div className="col-span-1">Contato</div>
         <div className="col-span-1">Valor</div>
         <div className="col-span-1">Status</div>
-        <div className="col-span-1"></div>
+        <div className="col-span-1 text-right">Ações</div>
       </div>
       
       {isLoading ? (
@@ -161,12 +161,12 @@ const TransactionTable = ({
         filteredTransactions.map((transaction) => (
           <React.Fragment key={transaction.id}>
             <div 
-              className="grid grid-cols-7 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
+              className="grid grid-cols-6 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors"
             >
               <div className="col-span-1 text-sm">
                 {formatDate(transaction.data)}
               </div>
-              <div className="col-span-2 font-medium">
+              <div className="col-span-1 font-medium">
                 <button 
                   onClick={() => toggleExpandTransaction(transaction.id)}
                   className="flex items-center gap-1 hover:text-purple"
@@ -188,21 +188,20 @@ const TransactionTable = ({
                 </span>
               </div>
               <div className="col-span-1">
-                {getStatusBadge(transaction)}
+                {transaction.paid ? (
+                  getStatusBadge(transaction)
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className={transaction.tipo === 'Despesa' ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'}
+                    onClick={() => toggleTransactionPaid(transaction)}
+                  >
+                    {transaction.tipo === 'Despesa' ? 'Pagar' : 'Receber'}
+                  </Button>
+                )}
               </div>
               <div className="col-span-1 flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={transaction.paid ? 'border-green-500 text-green-600' : 'border-blue-500 text-blue-600'}
-                  onClick={() => toggleTransactionPaid(transaction)}
-                >
-                  {transaction.tipo === 'Receita' ? (
-                    transaction.paid ? <Check className="h-4 w-4" /> : 'Receber'
-                  ) : (
-                    transaction.paid ? <Check className="h-4 w-4" /> : 'Pagar'
-                  )}
-                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
