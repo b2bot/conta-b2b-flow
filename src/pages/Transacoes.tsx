@@ -64,7 +64,8 @@ const Transacoes = () => {
     toggleTransactionPaid,
     handleDeleteTransaction,
     toggleExpandTransaction,
-    refetch
+    refetch,
+    saveTransactionMutation
   } = useTransactions();
 
   const [newTransaction, setNewTransaction] = useState<TransactionForm>({
@@ -138,13 +139,8 @@ const Transacoes = () => {
     };
 
     // Use the saveTransactionMutation from useTransactions
-    // This is a placeholder for the actual mutation call
-    fetch('/api/save-transaction', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(transactionToSave)
-    }).then(response => response.json())
-      .then(data => {
+    saveTransactionMutation.mutate(transactionToSave, {
+      onSuccess: (data) => {
         if (data.status === 'success') {
           toast({ title: "Transação salva com sucesso" });
           setDialogOpen(false);
@@ -157,14 +153,15 @@ const Transacoes = () => {
             variant: "destructive"
           });
         }
-      })
-      .catch(error => {
+      },
+      onError: (error: Error) => {
         toast({
           title: "Erro ao salvar transação",
           description: error.message,
           variant: "destructive",
         });
-      });
+      }
+    });
   };
 
   const handleDuplicateTransaction = (transaction: Transaction) => {
