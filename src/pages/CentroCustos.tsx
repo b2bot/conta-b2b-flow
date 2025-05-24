@@ -6,9 +6,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { costCentersAPI } from '@/services/api';
 import { useToast } from '@/components/ui/use-toast';
+import { 
+  MoreVertical, 
+  Edit, 
+  Trash
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Interface para centro de custo
+interface CentroCusto {
+  id: string;
+  nome: string;
+}
 
 const CentroCustos = () => {
   const [novoNome, setNovoNome] = useState('');
+  const [editingCentroCusto, setEditingCentroCusto] = useState<CentroCusto | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -23,17 +49,19 @@ const CentroCustos = () => {
     },
   });
 
-  // Adiciona novo centro de custo
-  const mutation = useMutation({
-    mutationFn: async (novo: { nome: string }) => costCentersAPI.save(novo),
+  // Adiciona/atualiza centro de custo
+  const saveMutation = useMutation({
+    mutationFn: async (centro: { id?: string; nome: string }) => costCentersAPI.save(centro),
     onSuccess: (data) => {
       if (data.status === 'success') {
-        toast({ title: 'Centro de custo criado com sucesso!' });
+        toast({ title: editingCentroCusto ? 'Centro de custo atualizado com sucesso!' : 'Centro de custo criado com sucesso!' });
         setNovoNome('');
+        setEditingCentroCusto(null);
+        setDialogOpen(false);
         queryClient.invalidateQueries({ queryKey: ['costCenters'] });
       } else {
         toast({
-          title: 'Erro ao criar centro de custo',
+          title: 'Erro ao salvar centro de custo',
           description: data.message,
           variant: 'destructive',
         });
@@ -41,7 +69,45 @@ const CentroCustos = () => {
     },
     onError: (error: any) => {
       toast({
-        title: 'Erro ao criar centro de custo',
+        title: 'Erro ao salvar centro de custo',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  });
+
+  // Exclui centro de custo
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Usar o endpoint real de exclusão
+      const response = await fetch('https://sistema.vksistemas.com.br/api/excluir-centro-custo.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${JSON.parse(localStorage.getItem('user') || '{}').token || ''}`
+        },
+        body: JSON.stringify({ id })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Erro ao excluir centro de custo');
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        toast({ title: 'Centro de custo excluído com sucesso!' });
+        queryClient.invalidateQueries({ queryKey: ['costCenters'] });
+      } else {
+        toast({
+          title: 'Erro ao excluir centro de custo',
+          description: data.message,
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao excluir centro de custo',
         description: String(error),
         variant: 'destructive',
       });
@@ -58,7 +124,25 @@ const CentroCustos = () => {
       });
       return;
     }
-    mutation.mutate({ nome: novoNome.trim() });
+
+    const centroToSave = {
+      ...(editingCentroCusto ? { id: editingCentroCusto.id } : {}),
+      nome: novoNome.trim()
+    };
+    
+    saveMutation.mutate(centroToSave);
+  };
+
+  const handleEdit = (centro: CentroCusto) => {
+    setEditingCentroCusto(centro);
+    setNovoNome(centro.nome);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este centro de custo?')) {
+      deleteMutation.mutate(id);
+    }
   };
 
   return (
@@ -79,8 +163,8 @@ const CentroCustos = () => {
                 autoFocus
               />
             </div>
-            <Button type="submit" className="bg-purple hover:bg-purple/90" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Salvando...' : 'Salvar'}
+            <Button type="submit" className="bg-purple hover:bg-purple/90" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </form>
         </CardContent>
@@ -97,10 +181,32 @@ const CentroCustos = () => {
             <div className="text-red-500">Erro ao carregar centros de custo.</div>
           ) : costCentersData && costCentersData.length > 0 ? (
             <ul className="divide-y">
-              {costCentersData.map((centro: any) => (
-                <li key={centro.id} className="py-2 flex items-center">
+              {costCentersData.map((centro: CentroCusto) => (
+                <li key={centro.id} className="py-2 flex items-center justify-between">
                   <span className="flex-1">{centro.nome}</span>
-                  {/* Se quiser, pode colocar botões de editar/excluir aqui */}
+                  <div className="flex items-center space-x-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Abrir menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(centro)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDelete(centro.id)}
+                          className="text-red-600"
+                        >
+                          <Trash className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -109,6 +215,42 @@ const CentroCustos = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog para edição */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Centro de Custo</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-nome">Nome</Label>
+              <Input
+                id="edit-nome"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                placeholder="Nome do centro de custo"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDialogOpen(false);
+              setEditingCentroCusto(null);
+              setNovoNome('');
+            }}>
+              Cancelar
+            </Button>
+            <Button 
+              className="bg-purple hover:bg-purple/90" 
+              onClick={handleSubmit}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
