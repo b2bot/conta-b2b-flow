@@ -57,12 +57,37 @@ try {
         exit;
     }
 
+    // Definir tipo padrão como 'Despesa' se não for fornecido
+    $tipo = isset($data['tipo']) ? $data['tipo'] : 'Despesa';
+    
+    // Verificar se o tipo é válido
+    if ($tipo !== 'Despesa' && $tipo !== 'Receita') {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Tipo inválido. Deve ser "Despesa" ou "Receita"',
+            'error_code' => 'INVALID_TYPE'
+        ]);
+        exit;
+    }
+
+    // Verificar se a coluna 'tipo' existe na tabela centro_custos
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM centro_custos LIKE 'tipo'");
+    $stmt->execute();
+    
+    if (!$stmt->fetch()) {
+        // A coluna 'tipo' não existe, vamos adicioná-la
+        $stmt = $pdo->prepare("ALTER TABLE centro_custos ADD COLUMN tipo ENUM('Despesa', 'Receita') NOT NULL DEFAULT 'Despesa'");
+        $stmt->execute();
+    }
+
     // Verificar se é uma atualização ou inserção
     if (isset($data['id']) && $data['id'] > 0) {
         // Atualizar centro de custo existente
-        $stmt = $pdo->prepare("UPDATE centro_custos SET nome = :nome WHERE id = :id");
+        $stmt = $pdo->prepare("UPDATE centro_custos SET nome = :nome, tipo = :tipo WHERE id = :id");
         $stmt->execute([
             'nome' => $data['nome'],
+            'tipo' => $tipo,
             'id' => $data['id']
         ]);
         
@@ -70,9 +95,10 @@ try {
         $id = $data['id'];
     } else {
         // Inserir novo centro de custo
-        $stmt = $pdo->prepare("INSERT INTO centro_custos (nome, criado_em) VALUES (:nome, NOW())");
+        $stmt = $pdo->prepare("INSERT INTO centro_custos (nome, tipo, criado_em) VALUES (:nome, :tipo, NOW())");
         $stmt->execute([
-            'nome' => $data['nome']
+            'nome' => $data['nome'],
+            'tipo' => $tipo
         ]);
         
         $id = $pdo->lastInsertId();
@@ -90,7 +116,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Erro ao salvar centro de custo',
+        'message' => 'Erro ao salvar centro de custo: ' . $e->getMessage(),
         'error_code' => 'DB_ERROR'
     ]);
     exit;
