@@ -126,16 +126,33 @@ const Categorias = () => {
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: async (id: string) => {
-      // This is a placeholder - actual implementation would call the delete API
-      // return await categoriesAPI.delete(id);
-      // For now we'll just simulate a delete
-      return { status: 'success' };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({
-        title: "Categoria excluída com sucesso",
+      // Usar o endpoint real de exclusão
+      const response = await fetch('https://sistema.vksistemas.com.br/api/excluir-categoria.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${JSON.parse(localStorage.getItem('user') || '{}').token || ''}`
+        },
+        body: JSON.stringify({ id })
       });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Erro ao excluir categoria');
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
+        toast({
+          title: "Categoria excluída com sucesso",
+        });
+      } else {
+        toast({
+          title: "Erro ao excluir categoria",
+          description: data.message || "Ocorreu um erro ao excluir a categoria",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       toast({
