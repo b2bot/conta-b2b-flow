@@ -154,12 +154,26 @@ const Categorias = () => {
         });
       }
     },
-    onError: (error) => {
-      toast({
-        title: "Erro ao excluir categoria",
-        description: String(error),
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      // Tratamento amigável para erro de categoria em uso
+      const errorMessage = error.message || "Erro ao excluir categoria";
+      
+      // Verificar se é um erro de categoria em uso
+      if (errorMessage.includes("não pode ser excluída") || 
+          errorMessage.includes("sendo usada") || 
+          errorMessage.includes("integrity constraint")) {
+        toast({
+          title: "Essa categoria está sendo usada e não pode ser excluída",
+          description: "Remova todas as transações e lançamentos recorrentes que usam esta categoria antes de excluí-la.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao excluir categoria",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     }
   });
 
