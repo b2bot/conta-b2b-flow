@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -42,6 +41,7 @@ interface TransactionFormProps {
   onCancel: () => void;
   categories: any[];
   contacts: any[];
+  costCenters: any[];
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({
@@ -51,7 +51,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   handleSaveTransaction,
   onCancel,
   categories,
-  contacts
+  contacts,
+  costCenters
 }) => {
   return (
     <>
@@ -151,6 +152,27 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   {contact.nome}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="centro-custo">Centro de Custo</Label>
+          <Select
+            value={newTransaction.centro_custo_id || ''}
+            onValueChange={(value) => setNewTransaction({...newTransaction, centro_custo_id: value})}
+          >
+            <SelectTrigger id="centro-custo">
+              <SelectValue placeholder="Selecione o centro de custo" />
+            </SelectTrigger>
+            <SelectContent>
+              {costCenters
+                .filter(cc => cc.tipo === newTransaction.tipo || !cc.tipo)
+                .map(cc => (
+                  <SelectItem key={cc.id} value={cc.id}>
+                    {cc.nome}
+                  </SelectItem>
+                ))
+              }
             </SelectContent>
           </Select>
         </div>
