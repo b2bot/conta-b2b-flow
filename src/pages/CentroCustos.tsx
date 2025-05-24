@@ -24,15 +24,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from '@/components/ui/badge';
 
 // Interface para centro de custo
 interface CentroCusto {
   id: string;
   nome: string;
+  tipo: 'Despesa' | 'Receita';
 }
 
 const CentroCustos = () => {
   const [novoNome, setNovoNome] = useState('');
+  const [novoTipo, setNovoTipo] = useState<'Despesa' | 'Receita'>('Despesa');
   const [editingCentroCusto, setEditingCentroCusto] = useState<CentroCusto | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -51,11 +61,12 @@ const CentroCustos = () => {
 
   // Adiciona/atualiza centro de custo
   const saveMutation = useMutation({
-    mutationFn: async (centro: { id?: string; nome: string }) => costCentersAPI.save(centro),
+    mutationFn: async (centro: { id?: string; nome: string; tipo: 'Despesa' | 'Receita' }) => costCentersAPI.save(centro),
     onSuccess: (data) => {
       if (data.status === 'success') {
         toast({ title: editingCentroCusto ? 'Centro de custo atualizado com sucesso!' : 'Centro de custo criado com sucesso!' });
         setNovoNome('');
+        setNovoTipo('Despesa');
         setEditingCentroCusto(null);
         setDialogOpen(false);
         queryClient.invalidateQueries({ queryKey: ['costCenters'] });
@@ -127,7 +138,8 @@ const CentroCustos = () => {
 
     const centroToSave = {
       ...(editingCentroCusto ? { id: editingCentroCusto.id } : {}),
-      nome: novoNome.trim()
+      nome: novoNome.trim(),
+      tipo: novoTipo
     };
     
     saveMutation.mutate(centroToSave);
@@ -136,6 +148,7 @@ const CentroCustos = () => {
   const handleEdit = (centro: CentroCusto) => {
     setEditingCentroCusto(centro);
     setNovoNome(centro.nome);
+    setNovoTipo(centro.tipo || 'Despesa');
     setDialogOpen(true);
   };
 
@@ -152,7 +165,7 @@ const CentroCustos = () => {
           <CardTitle className="text-purple-dark">Novo Centro de Custo</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex gap-4 items-end">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex-1">
               <Label htmlFor="nome-centro">Nome</Label>
               <Input
@@ -163,9 +176,26 @@ const CentroCustos = () => {
                 autoFocus
               />
             </div>
-            <Button type="submit" className="bg-purple hover:bg-purple/90" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
-            </Button>
+            <div className="flex-1">
+              <Label htmlFor="tipo-centro">Tipo</Label>
+              <Select
+                value={novoTipo}
+                onValueChange={(value) => setNovoTipo(value as 'Despesa' | 'Receita')}
+              >
+                <SelectTrigger id="tipo-centro">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Despesa">Despesa</SelectItem>
+                  <SelectItem value="Receita">Receita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" className="bg-purple hover:bg-purple/90" disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -180,36 +210,48 @@ const CentroCustos = () => {
           ) : isError ? (
             <div className="text-red-500">Erro ao carregar centros de custo.</div>
           ) : costCentersData && costCentersData.length > 0 ? (
-            <ul className="divide-y">
-              {costCentersData.map((centro: CentroCusto) => (
-                <li key={centro.id} className="py-2 flex items-center justify-between">
-                  <span className="flex-1">{centro.nome}</span>
-                  <div className="flex items-center space-x-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Abrir menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(centro)}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDelete(centro.id)}
-                          className="text-red-600"
-                        >
-                          <Trash className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="border rounded-md">
+              <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 font-medium">
+                <div className="col-span-6">Nome</div>
+                <div className="col-span-4">Tipo</div>
+                <div className="col-span-2"></div>
+              </div>
+              <ul className="divide-y">
+                {costCentersData.map((centro: CentroCusto) => (
+                  <li key={centro.id} className="grid grid-cols-12 gap-4 p-4 border-b border-border items-center hover:bg-muted/30 transition-colors">
+                    <div className="col-span-6 font-medium">{centro.nome}</div>
+                    <div className="col-span-4">
+                      <Badge className={`${centro.tipo === 'Receita' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>
+                        {centro.tipo || 'Despesa'}
+                      </Badge>
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Abrir menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(centro)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDelete(centro.id)}
+                            className="text-red-600"
+                          >
+                            <Trash className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <div>Nenhum centro de custo cadastrado.</div>
           )}
@@ -232,12 +274,28 @@ const CentroCustos = () => {
                 placeholder="Nome do centro de custo"
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-tipo">Tipo</Label>
+              <Select
+                value={novoTipo}
+                onValueChange={(value) => setNovoTipo(value as 'Despesa' | 'Receita')}
+              >
+                <SelectTrigger id="edit-tipo">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Despesa">Despesa</SelectItem>
+                  <SelectItem value="Receita">Receita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setDialogOpen(false);
               setEditingCentroCusto(null);
               setNovoNome('');
+              setNovoTipo('Despesa');
             }}>
               Cancelar
             </Button>
