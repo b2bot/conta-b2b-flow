@@ -6,11 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { costCentersAPI } from '@/services/api';
 import { useToast } from '@/components/ui/use-toast';
-import { 
-  MoreVertical, 
-  Edit, 
-  Trash
-} from 'lucide-react';
+import { MoreVertical, Edit, Trash } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 
-// Interface para centro de custo
 interface CentroCusto {
   id: string;
   nome: string;
@@ -48,44 +43,36 @@ const CentroCustos = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Busca centros de custo
   const { data: costCentersData, isLoading, isError, refetch } = useQuery({
     queryKey: ['costCenters'],
     queryFn: async () => {
       const response = await costCentersAPI.list();
-      // ATENÇÃO: Tem que bater com o backend!
-      // Se no PHP está "centros_custo", mantenha aqui!
       return response.status === 'success' ? response.centros_custo : [];
     },
-    staleTime: 0, // Sempre considerar os dados obsoletos para forçar refetch
-    cacheTime: 0, // Não manter cache
+    staleTime: 0,
+    cacheTime: 0,
   });
 
-  // Adiciona/atualiza centro de custo
   const saveMutation = useMutation({
     mutationFn: async (centro: { id?: string; nome: string; tipo: 'Despesa' | 'Receita' }) => {
-      // Garantir que o tipo seja enviado corretamente
       return costCentersAPI.save(centro);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        toast({ title: editingCentroCusto ? 'Centro de custo atualizado com sucesso!' : 'Centro de custo criado com sucesso!' });
+        toast({
+          title: editingCentroCusto
+            ? 'Centro de custo atualizado com sucesso!'
+            : 'Centro de custo criado com sucesso!',
+        });
         setNovoNome('');
         setNovoTipo('Despesa');
         setEditingCentroCusto(null);
         setDialogOpen(false);
-        
-        // Forçar invalidação do cache e refetch imediato
         queryClient.invalidateQueries({ queryKey: ['costCenters'] });
         queryClient.resetQueries({ queryKey: ['costCenters'] });
-        
-        // Forçar múltiplos refetches para garantir atualização da UI
         refetch();
-        
-        // Pequeno delay para garantir que a UI seja atualizada após o refetch
         setTimeout(() => {
           refetch();
-          // Forçar atualização da UI
           queryClient.invalidateQueries({ queryKey: ['costCenters'] });
         }, 300);
       } else {
@@ -105,10 +92,8 @@ const CentroCustos = () => {
     }
   });
 
-  // Exclui centro de custo
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Usar o endpoint real de exclusão
       const response = await fetch('https://sistema.vksistemas.com.br/api/excluir-centro-custo.php', {
         method: 'POST',
         headers: {
@@ -117,7 +102,7 @@ const CentroCustos = () => {
         },
         body: JSON.stringify({ id })
       });
-      
+
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Erro ao excluir centro de custo');
       return data;
@@ -144,7 +129,6 @@ const CentroCustos = () => {
     }
   });
 
-  // Efeito para forçar refetch quando o componente montar
   useEffect(() => {
     refetch();
   }, [refetch]);
@@ -165,7 +149,7 @@ const CentroCustos = () => {
       nome: novoNome.trim(),
       tipo: novoTipo
     };
-    
+
     saveMutation.mutate(centroToSave);
   };
 
@@ -262,10 +246,7 @@ const CentroCustos = () => {
                             <Edit className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDelete(centro.id)}
-                            className="text-red-600"
-                          >
+                          <DropdownMenuItem onClick={() => handleDelete(centro.id)} className="text-red-600">
                             <Trash className="h-4 w-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
@@ -282,7 +263,6 @@ const CentroCustos = () => {
         </CardContent>
       </Card>
 
-      {/* Dialog para edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -323,11 +303,7 @@ const CentroCustos = () => {
             }}>
               Cancelar
             </Button>
-            <Button 
-              className="bg-purple hover:bg-purple/90" 
-              onClick={handleSubmit}
-              disabled={saveMutation.isPending}
-            >
+            <Button className="bg-purple hover:bg-purple/90" onClick={handleSubmit} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
