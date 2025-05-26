@@ -18,7 +18,7 @@ export const useTransactions = () => {
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  
+
   const [financialSummary, setFinancialSummary] = useState({
     received: 0,
     expected: 0,
@@ -29,7 +29,6 @@ export const useTransactions = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch transactions
   const { data: transactionsData = [], isLoading, refetch } = useQuery({
     queryKey: ['transactions'],
     queryFn: async () => {
@@ -38,7 +37,6 @@ export const useTransactions = () => {
     }
   });
 
-  // Fetch categories for dropdown
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -47,7 +45,6 @@ export const useTransactions = () => {
     }
   });
 
-  // Fetch contacts for dropdown
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
@@ -56,16 +53,14 @@ export const useTransactions = () => {
     }
   });
 
-  // Fetch cost centers for dropdown
   const { data: costCenters = [] } = useQuery({
-    queryKey: ['costCenters'],
+    queryKey: ['cost-centers'],
     queryFn: async () => {
       const response = await costCentersAPI.list();
       return response.status === 'success' ? response.centros_custo : [];
     }
   });
 
-  // Save transaction mutation
   const saveTransactionMutation = useMutation({
     mutationFn: async (transaction: any) => {
       return await transactionsAPI.save(transaction);
@@ -73,9 +68,7 @@ export const useTransactions = () => {
     onSuccess: (data) => {
       if (data.status === 'success') {
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast({
-          title: "Transação salva com sucesso",
-        });
+        toast({ title: "Transação salva com sucesso" });
       } else {
         toast({
           title: "Erro ao salvar transação",
@@ -93,10 +86,8 @@ export const useTransactions = () => {
     }
   });
 
-  // Toggle paid status mutation
   const togglePaidStatusMutation = useMutation({
     mutationFn: (transaction: Transaction) => {
-      // Create a new object with the updated paid status
       const updatedTransaction = {
         ...transaction,
         paid: !transaction.paid,
@@ -104,20 +95,12 @@ export const useTransactions = () => {
           (transaction.tipo === 'Despesa' ? 'Pago' : 'Recebido') : 
           (transaction.tipo === 'Despesa' ? 'A pagar' : 'A receber')
       };
-      
       return transactionsAPI.save(updatedTransaction);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        // Force data refetch to get updated transaction list
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        
-        // Show success toast
-        toast({
-          title: "Status atualizado com sucesso",
-        });
-        
-        // Force refetch of transactions to ensure we have the latest data
+        toast({ title: "Status atualizado com sucesso" });
         refetch();
       } else {
         toast({
@@ -136,21 +119,14 @@ export const useTransactions = () => {
     }
   });
 
-  // Delete transaction mutation
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Use the real delete API endpoint
       return await transactionsAPI.delete(id);
     },
     onSuccess: (data) => {
       if (data.status === 'success') {
-        // Force data refetch to get updated transaction list
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        
-        toast({
-          title: "Transação excluída com sucesso",
-        });
-        
+        toast({ title: "Transação excluída com sucesso" });
         refetch();
       } else {
         toast({
@@ -169,7 +145,6 @@ export const useTransactions = () => {
     }
   });
 
-  // Normalize transactions to ensure consistent data structure
   const transactions = useMemo(() => {
     return (transactionsData || []).map(transaction => {
       return {
@@ -179,10 +154,8 @@ export const useTransactions = () => {
     });
   }, [transactionsData]);
 
-  // Filter transactions by month and other filters
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
-      // Filter by month/year
       const transactionDate = new Date(transaction.data);
       if (
         transactionDate.getMonth() !== currentMonth.getMonth() ||
@@ -191,7 +164,6 @@ export const useTransactions = () => {
         return false;
       }
 
-      // Apply other filters
       if (filters.tipo !== 'all' && transaction.tipo !== filters.tipo) return false;
       if (filters.paid !== 'all') {
         if (filters.paid === 'paid' && !transaction.paid) return false;
@@ -204,7 +176,6 @@ export const useTransactions = () => {
     });
   }, [transactions, currentMonth, filters]);
 
-  // Calculate financial summary based on filtered transactions
   useEffect(() => {
     const summary = calculateTransactionSummary(filteredTransactions);
     setFinancialSummary(summary);
