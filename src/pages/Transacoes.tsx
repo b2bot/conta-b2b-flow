@@ -18,7 +18,6 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { exportToExcel, formatCurrency } from '@/utils/fileUtils';
 import { Transaction } from '@/components/transactions/TransactionList';
 
-// Import refactored components
 import TransactionForm from '@/components/transactions/TransactionForm';
 import TransactionFilters, { FilterButton } from '@/components/transactions/TransactionFilters';
 import FinancialSummary from '@/components/transactions/FinancialSummary';
@@ -26,7 +25,6 @@ import TransactionList from '@/components/transactions/TransactionList';
 import MonthSelector from '@/components/transactions/MonthSelector';
 import ImportExportButtons from '@/components/transactions/ImportExportButtons';
 
-// Define new transaction form
 interface TransactionForm {
   id?: string;
   descricao: string;
@@ -56,7 +54,7 @@ const Transacoes = () => {
     filteredTransactions,
     categories,
     contacts,
-    costCenters,
+    costCenters = [],
     nextMonth,
     prevMonth,
     handleFilterChange,
@@ -112,7 +110,6 @@ const Transacoes = () => {
       return;
     }
 
-    // Validate amount
     const amount = parseFloat(newTransaction.valor.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
       toast({
@@ -125,7 +122,6 @@ const Transacoes = () => {
 
     const dateString = format(newTransaction.data, 'yyyy-MM-dd');
 
-    // Ensure contato_id is included in the saved transaction for proper contact display
     const transactionToSave = {
       ...(isEditing && newTransaction.id ? { id: newTransaction.id } : {}),
       data: dateString,
@@ -140,7 +136,6 @@ const Transacoes = () => {
       detalhes: newTransaction.detalhes || ""
     };
 
-    // Use the saveTransactionMutation from useTransactions
     saveTransactionMutation.mutate(transactionToSave, {
       onSuccess: (data) => {
         if (data.status === 'success') {
@@ -167,15 +162,13 @@ const Transacoes = () => {
   };
 
   const handleDuplicateTransaction = (transaction: Transaction) => {
-    // Create a new transaction based on the selected one, but without ID
     const duplicatedTransaction = {
       ...transaction,
-      id: undefined, // Remove ID to create a new transaction
-      data: format(new Date(), 'yyyy-MM-dd'), // Set date to today
-      paid: false // Reset paid status
+      id: undefined,
+      data: format(new Date(), 'yyyy-MM-dd'),
+      paid: false
     };
-    
-    // Convert to form model for editing
+
     setNewTransaction({
       descricao: duplicatedTransaction.descricao,
       valor: duplicatedTransaction.valor.toString(),
@@ -188,10 +181,10 @@ const Transacoes = () => {
       recurrence: duplicatedTransaction.recurrence || 'none',
       detalhes: duplicatedTransaction.detalhes || ''
     });
-    
-    setIsEditing(false); // It's a new transaction, not an edit
+
+    setIsEditing(false);
     setDialogOpen(true);
-    
+
     toast({
       title: "Transação duplicada",
       description: "Edite os detalhes conforme necessário e salve.",
@@ -207,15 +200,14 @@ const Transacoes = () => {
 
   const handleEditTransaction = (transaction: Transaction) => {
     setIsEditing(true);
-    
-    // Parse the transaction date
+
     let transactionDate;
     try {
       transactionDate = new Date(transaction.data);
     } catch (e) {
       transactionDate = new Date();
     }
-    
+
     setNewTransaction({
       id: transaction.id,
       descricao: transaction.descricao,
@@ -229,7 +221,7 @@ const Transacoes = () => {
       recurrence: transaction.recurrence || 'none',
       detalhes: transaction.detalhes || ''
     });
-    
+
     setDialogOpen(true);
   };
 
@@ -245,9 +237,9 @@ const Transacoes = () => {
       Status: t.paid ? (t.tipo === 'Despesa' ? 'Pago' : 'Recebido') : (t.tipo === 'Despesa' ? 'A pagar' : 'A receber'),
       Detalhes: t.detalhes || ''
     }));
-    
+
     exportToExcel(dataToExport, `Transacoes_${format(currentMonth, 'MMMM_yyyy', { locale: ptBR })}`);
-    
+
     toast({
       title: "Exportação concluída",
       description: `${dataToExport.length} transações exportadas com sucesso.`,
@@ -255,16 +247,14 @@ const Transacoes = () => {
   };
 
   const handleImportSuccess = (data: any[]) => {
-    // Process imported transactions
     console.log('Imported data:', data);
     setImportDialogOpen(false);
-    
+
     toast({
       title: "Importação concluída",
       description: `${data.length} transações importadas com sucesso.`,
     });
-    
-    // Refresh transactions list
+
     refetch();
   };
 
@@ -279,7 +269,7 @@ const Transacoes = () => {
             importDialogOpen={importDialogOpen}
             setImportDialogOpen={setImportDialogOpen}
           />
-          
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -287,7 +277,7 @@ const Transacoes = () => {
                 Nova Transação
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{isEditing ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
                 <DialogDescription>
@@ -308,34 +298,22 @@ const Transacoes = () => {
           </Dialog>
         </div>
       </div>
-      
+
       <FinancialSummary financialSummary={financialSummary} />
-      
+
       <div className="flex items-center justify-between">
-        <MonthSelector
-          currentMonth={currentMonth}
-          nextMonth={nextMonth}
-          prevMonth={prevMonth}
-        />
-        
+        <MonthSelector currentMonth={currentMonth} nextMonth={nextMonth} prevMonth={prevMonth} />
+
         <div className="flex space-x-2">
           <ToggleGroup type="single" value={activeFilter || ''}>
-            <ToggleGroupItem 
-              value="receitas" 
-              onClick={() => applyQuickFilter('receitas')}
-              className={activeFilter === 'receitas' ? 'bg-green-100' : ''}
-            >
+            <ToggleGroupItem value="receitas" onClick={() => applyQuickFilter('receitas')} className={activeFilter === 'receitas' ? 'bg-green-100' : ''}>
               Recebimentos
             </ToggleGroupItem>
-            <ToggleGroupItem 
-              value="despesas" 
-              onClick={() => applyQuickFilter('despesas')}
-              className={activeFilter === 'despesas' ? 'bg-red-100' : ''}
-            >
+            <ToggleGroupItem value="despesas" onClick={() => applyQuickFilter('despesas')} className={activeFilter === 'despesas' ? 'bg-red-100' : ''}>
               Despesas
             </ToggleGroupItem>
           </ToggleGroup>
-          
+
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
               <FilterButton onClick={() => setFilterOpen(!filterOpen)} />
@@ -353,7 +331,7 @@ const Transacoes = () => {
           </Popover>
         </div>
       </div>
-      
+
       <TransactionList
         transactions={filteredTransactions}
         expandedTransaction={expandedTransaction}
