@@ -16,7 +16,8 @@ import {
   Search,
   LogOut,
   PieChart,
-  UserCircle
+  UserCircle,
+  Receipt
 } from 'lucide-react';
 import { Input } from './ui/input';
 
@@ -43,7 +44,7 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label, active, onClick }) =
 
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { signOut, user } = useAuth(); // Corrigido: era 'logout', o correto é 'signOut'
+  const { signOut, user } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -57,7 +58,7 @@ const Layout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex w-full overflow-x-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 lg:hidden"
@@ -72,8 +73,8 @@ const Layout: React.FC = () => {
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center h-16 border-b border-border px-4">
-            <Link to="/dashboard" className="flex items-center space-x-2" onClick={closeSidebar}>
+          <div className="flex items-center justify-between h-16 border-b border-border px-4">
+            <Link to="/" className="flex items-center space-x-2" onClick={closeSidebar}>
               <h1 className="text-2xl font-bold text-purple">Conta</h1>
               <div className="bg-purple text-white text-xs px-2 py-0.5 rounded-md">
                 Partner B2B
@@ -101,10 +102,10 @@ const Layout: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             <NavItem
-              to="/dashboard"
+              to="/"
               icon={<Home size={18} />}
               label="Página inicial"
-              active={isActive('/dashboard')}
+              active={isActive('/')}
               onClick={closeSidebar}
             />
             <NavItem
@@ -112,6 +113,13 @@ const Layout: React.FC = () => {
               icon={<CreditCard size={18} />}
               label="Transações"
               active={isActive('/transacoes')}
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/receitas-detalhadas"
+              icon={<Receipt size={18} />}
+              label="Receitas Detalhadas"
+              active={isActive('/receitas-detalhadas')}
               onClick={closeSidebar}
             />
             <NavItem
@@ -164,17 +172,17 @@ const Layout: React.FC = () => {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-        <header className="h-16 flex items-center px-4 border-b border-border bg-white">
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
+        <header className="h-16 flex items-center px-4 border-b border-border bg-white lg:pl-6">
           <button
-            className="p-1 rounded-md text-gray-500 hover:bg-gray-100 lg:hidden"
+            className="p-1 rounded-md text-gray-500 hover:bg-gray-100 lg:hidden mr-4"
             onClick={toggleSidebar}
           >
             <Menu size={24} />
           </button>
 
-          <div className="flex-1 px-4">
-            <div className="relative max-w-md">
+          <div className="flex-1">
+            <div className="relative w-full">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Pesquisar..."
@@ -184,7 +192,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-6">
+        <main className="flex-1 p-4 lg:p-6 w-full min-w-0 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

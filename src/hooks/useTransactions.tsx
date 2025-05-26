@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { transactionsAPI, categoriesAPI, contactsAPI } from '@/services/api';
+import { transactionsAPI, categoriesAPI, contactsAPI, costCentersAPI } from '@/services/api';
 import { calculateTransactionSummary } from '@/utils/fileUtils';
 import { Transaction } from '@/components/transactions/TransactionList';
 
@@ -53,6 +53,15 @@ export const useTransactions = () => {
     queryFn: async () => {
       const response = await contactsAPI.list();
       return response.status === 'success' ? response.contatos : [];
+    }
+  });
+
+  // Fetch cost centers for dropdown
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ['costCenters'],
+    queryFn: async () => {
+      const response = await costCentersAPI.list();
+      return response.status === 'success' ? response.centros_custo : [];
     }
   });
 
@@ -271,6 +280,7 @@ export const useTransactions = () => {
     filteredTransactions,
     categories,
     contacts,
+    costCenters,
     saveTransactionMutation,
     togglePaidStatusMutation,
     deleteTransactionMutation,

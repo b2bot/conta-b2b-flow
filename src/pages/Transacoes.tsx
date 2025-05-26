@@ -56,6 +56,7 @@ const Transacoes = () => {
     filteredTransactions,
     categories,
     contacts,
+    costCenters,
     nextMonth,
     prevMonth,
     handleFilterChange,
@@ -131,6 +132,7 @@ const Transacoes = () => {
       descricao: newTransaction.descricao,
       categoria_id: newTransaction.categoria_id,
       contato_id: newTransaction.paymentTo, 
+      centro_custo_id: newTransaction.centro_custo_id || "",
       valor: amount,
       tipo: newTransaction.tipo,
       paid: newTransaction.paid,
@@ -181,6 +183,7 @@ const Transacoes = () => {
       tipo: duplicatedTransaction.tipo,
       categoria_id: duplicatedTransaction.categoria_id,
       paymentTo: duplicatedTransaction.contato_id || '',
+      centro_custo_id: duplicatedTransaction.centro_custo_id || '',
       paid: false,
       recurrence: duplicatedTransaction.recurrence || 'none',
       detalhes: duplicatedTransaction.detalhes || ''
@@ -221,6 +224,7 @@ const Transacoes = () => {
       tipo: transaction.tipo,
       categoria_id: transaction.categoria_id,
       paymentTo: transaction.contato_id || '',
+      centro_custo_id: transaction.centro_custo_id || '',
       paid: transaction.paid,
       recurrence: transaction.recurrence || 'none',
       detalhes: transaction.detalhes || ''
@@ -235,6 +239,7 @@ const Transacoes = () => {
       Descrição: t.descricao,
       Contato: t.contato_nome || '',
       Categoria: t.categoria_nome,
+      'Centro de Custo': t.centro_custo_nome || '',
       Valor: t.valor,
       Tipo: t.tipo,
       Status: t.paid ? (t.tipo === 'Despesa' ? 'Pago' : 'Recebido') : (t.tipo === 'Despesa' ? 'A pagar' : 'A receber'),
@@ -297,6 +302,7 @@ const Transacoes = () => {
                 onCancel={() => setDialogOpen(false)}
                 categories={categories}
                 contacts={contacts}
+                costCenters={costCenters}
               />
             </DialogContent>
           </Dialog>

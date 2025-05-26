@@ -65,7 +65,7 @@ export const costCentersAPI = {
     });
     return handleResponse(res);
   },
-  save: async (centro: { id?: string; nome: string; descricao?: string }) => {
+  save: async (centro: { id?: string; nome: string; tipo?: string }) => {
     const res = await fetch(`${API_BASE_URL}/salvar-centro-custo.php`, {
       method: 'POST',
       headers: getAuthHeaders(),

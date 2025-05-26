@@ -8,6 +8,7 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Transacoes from "./pages/Transacoes";
+import ReceitasDetalhadas from '@/pages/ReceitasDetalhadas';
 import Recorrentes from "./pages/Recorrentes";
 import Categorias from "./pages/Categorias";
 import CentroCustos from "./pages/CentroCustos";
@@ -40,6 +41,7 @@ const App = () => (
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="transacoes" element={<Transacoes />} />
+			  <Route path="receitas-detalhadas" element={<ReceitasDetalhadas />} />
               <Route path="recorrentes" element={<Recorrentes />} />
               <Route path="categorias" element={<Categorias />} />
               <Route path="centro-custos" element={<CentroCustos />} />
