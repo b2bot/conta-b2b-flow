@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -23,10 +22,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Filter } from 'lucide-react';
-import { useReceitas, ReceitaForm as ReceitaFormType } from '@/hooks/useReceitas';
+import { Plus, Search, Filter, MoreVertical, Edit, Trash } from 'lucide-react';
+import { useReceitas, ReceitaForm as ReceitaFormType, Receita } from '@/hooks/useReceitas';
 import ReceitaForm from '@/components/receitas/ReceitaForm';
 import { formatCurrency } from '@/utils/fileUtils';
 
@@ -42,7 +48,8 @@ const ReceitasDetalhadas: React.FC = () => {
     categories,
     contacts,
     financialSummary,
-    saveReceitaMutation
+    saveReceitaMutation,
+    deleteReceitaMutation
   } = useReceitas();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -90,6 +97,41 @@ const ReceitasDetalhadas: React.FC = () => {
         resetForm();
       }
     });
+  };
+
+  const handleEditReceita = (receita: Receita) => {
+    setIsEditing(true);
+    
+    // Parse the receita date
+    let receitaDate;
+    try {
+      receitaDate = new Date(receita.data);
+    } catch (e) {
+      receitaDate = new Date();
+    }
+    
+    setNewReceita({
+      id: receita.id,
+      data: receitaDate,
+      codigo: receita.codigo,
+      contato_id: receita.contato_id || '',
+      servico: receita.servico,
+      plano: receita.plano,
+      categoria_id: receita.categoria_id || '',
+      valor: receita.valor.toString(),
+      tipo: receita.tipo,
+      modeloCobranca: receita.modeloCobranca,
+      status: receita.status,
+      entregasPrincipais: receita.entregasPrincipais
+    });
+    
+    setDialogOpen(true);
+  };
+
+  const handleDeleteReceita = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta receita?')) {
+      deleteReceitaMutation.mutate(id);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -242,6 +284,7 @@ const ReceitasDetalhadas: React.FC = () => {
                   <TableHead className="text-white font-medium min-w-[150px]">Modelo de Cobrança</TableHead>
                   <TableHead className="text-white font-medium min-w-[100px]">Status</TableHead>
                   <TableHead className="text-white font-medium min-w-[200px]">Entregas Principais</TableHead>
+                  <TableHead className="text-white font-medium min-w-[80px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -271,6 +314,30 @@ const ReceitasDetalhadas: React.FC = () => {
                     </TableCell>
                     <TableCell className="max-w-48 truncate" title={receita.entregasPrincipais}>
                       {receita.entregasPrincipais}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Abrir menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditReceita(receita)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteReceita(receita.id)}
+                            className="text-red-600"
+                          >
+                            <Trash className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
