@@ -1,9 +1,24 @@
-
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { categoriesAPI, contactsAPI } from '@/services/api';
+
+// Mock API para planos (será substituída pela API real quando disponível)
+const planosAPI = {
+  list: async () => {
+    // Simulação de chamada à API
+    return {
+      status: 'success',
+      planos: [
+        { id: '1', nome: 'Cloud Hosting', descricao: 'Plano de hospedagem na nuvem', ativo: true },
+        { id: '2', nome: 'Web Essencial', descricao: 'Plano web básico', ativo: true },
+        { id: '3', nome: 'E-com Essencia', descricao: 'Plano para e-commerce', ativo: true },
+        { id: '4', nome: 'Premium', descricao: 'Plano premium com recursos avançados', ativo: true }
+      ]
+    };
+  }
+};
 
 export interface Receita {
   id: string;
@@ -12,6 +27,7 @@ export interface Receita {
   cliente: string;
   servico: string;
   plano: string;
+  plano_id?: string;
   categoriaServico: string;
   valor: number;
   tipo: string;
@@ -29,6 +45,7 @@ export interface ReceitaForm {
   contato_id: string;
   servico: string;
   plano: string;
+  plano_id?: string;
   categoria_id: string;
   valor: string;
   tipo: string;
@@ -41,6 +58,10 @@ export const useReceitas = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterTipo, setFilterTipo] = useState('all');
+  const [filterServico, setFilterServico] = useState('all');
+  const [filterPlano, setFilterPlano] = useState('all');
+  const [filterModeloCobranca, setFilterModeloCobranca] = useState('all');
+  
   const [receitas, setReceitas] = useState<Receita[]>([
     {
       id: '1',
@@ -49,6 +70,7 @@ export const useReceitas = () => {
       cliente: 'Ultra Eventos Ltda',
       servico: 'Hospedagem E Co',
       plano: 'Cloud Hosting',
+      plano_id: '1',
       categoriaServico: 'E-com Essencia',
       valor: 250.00,
       tipo: 'Receita',
@@ -63,6 +85,7 @@ export const useReceitas = () => {
       cliente: 'Ultra Eventos Ltda',
       servico: 'Manutenção de P',
       plano: 'Cloud Hosting',
+      plano_id: '1',
       categoriaServico: '',
       valor: 24.90,
       tipo: 'Receita',
@@ -77,6 +100,7 @@ export const useReceitas = () => {
       cliente: 'Bioquality Date Clini',
       servico: 'Hospedagem/Ma',
       plano: 'Cloud Hosting',
+      plano_id: '1',
       categoriaServico: 'Web Essencial',
       valor: 89.90,
       tipo: 'Receita',
@@ -91,6 +115,7 @@ export const useReceitas = () => {
       cliente: 'Bioquality Date Clini',
       servico: 'Manutenção de P',
       plano: 'Cloud Hosting',
+      plano_id: '1',
       categoriaServico: '',
       valor: 24.90,
       tipo: 'Receita',
@@ -121,6 +146,15 @@ export const useReceitas = () => {
     }
   });
 
+  // Fetch planos for dropdown
+  const { data: planos = [] } = useQuery({
+    queryKey: ['planos'],
+    queryFn: async () => {
+      const response = await planosAPI.list();
+      return response.status === 'success' ? response.planos : [];
+    }
+  });
+
   // Save receita mutation
   const saveReceitaMutation = useMutation({
     mutationFn: async (receita: ReceitaForm) => {
@@ -132,6 +166,7 @@ export const useReceitas = () => {
         cliente: contacts.find(c => c.id === receita.contato_id)?.nome || '',
         servico: receita.servico,
         plano: receita.plano,
+        plano_id: receita.plano_id,
         categoriaServico: categories.find(c => c.id === receita.categoria_id)?.nome || '',
         valor: parseFloat(receita.valor.replace(',', '.')),
         tipo: receita.tipo,
@@ -166,6 +201,39 @@ export const useReceitas = () => {
     }
   });
 
+  // Delete receita mutation
+  const deleteReceitaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Simulate API call - in real implementation, this would call an API
+      setReceitas(prev => prev.filter(r => r.id !== id));
+      return { status: 'success' };
+    },
+    onSuccess: () => {
+      toast({
+        title: "Receita excluída com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao excluir receita",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Get unique services for filter
+  const servicos = useMemo(() => {
+    const uniqueServicos = new Set(receitas.map(r => r.servico));
+    return Array.from(uniqueServicos);
+  }, [receitas]);
+
+  // Get unique modelos de cobrança for filter
+  const modelosCobranca = useMemo(() => {
+    const uniqueModelos = new Set(receitas.map(r => r.modeloCobranca));
+    return Array.from(uniqueModelos);
+  }, [receitas]);
+
   // Filter receitas
   const filteredReceitas = useMemo(() => {
     return receitas.filter(receita => {
@@ -175,10 +243,13 @@ export const useReceitas = () => {
       
       const matchesStatus = filterStatus === 'all' || receita.status === filterStatus;
       const matchesTipo = filterTipo === 'all' || receita.tipo === filterTipo;
+      const matchesServico = filterServico === 'all' || receita.servico === filterServico;
+      const matchesPlano = filterPlano === 'all' || receita.plano === filterPlano;
+      const matchesModeloCobranca = filterModeloCobranca === 'all' || receita.modeloCobranca === filterModeloCobranca;
       
-      return matchesSearch && matchesStatus && matchesTipo;
+      return matchesSearch && matchesStatus && matchesTipo && matchesServico && matchesPlano && matchesModeloCobranca;
     });
-  }, [receitas, searchTerm, filterStatus, filterTipo]);
+  }, [receitas, searchTerm, filterStatus, filterTipo, filterServico, filterPlano, filterModeloCobranca]);
 
   // Calculate financial summary
   const financialSummary = useMemo(() => {
@@ -198,6 +269,26 @@ export const useReceitas = () => {
     };
   }, [filteredReceitas]);
 
+  // Duplicate receita function
+  const duplicateReceita = (receita: Receita) => {
+    const duplicatedReceita: ReceitaForm = {
+      data: new Date(),
+      codigo: receita.codigo,
+      contato_id: receita.contato_id || '',
+      servico: receita.servico,
+      plano: receita.plano,
+      plano_id: receita.plano_id,
+      categoria_id: receita.categoria_id || '',
+      valor: receita.valor.toString(),
+      tipo: receita.tipo,
+      modeloCobranca: receita.modeloCobranca,
+      status: 'A receber', // Reset status to 'A receber'
+      entregasPrincipais: receita.entregasPrincipais
+    };
+    
+    return duplicatedReceita;
+  };
+
   return {
     receitas: filteredReceitas,
     searchTerm,
@@ -206,9 +297,20 @@ export const useReceitas = () => {
     setFilterStatus,
     filterTipo,
     setFilterTipo,
+    filterServico,
+    setFilterServico,
+    filterPlano,
+    setFilterPlano,
+    filterModeloCobranca,
+    setFilterModeloCobranca,
     categories,
     contacts,
+    planos,
+    servicos,
+    modelosCobranca,
     financialSummary,
-    saveReceitaMutation
+    saveReceitaMutation,
+    deleteReceitaMutation,
+    duplicateReceita
   };
 };
