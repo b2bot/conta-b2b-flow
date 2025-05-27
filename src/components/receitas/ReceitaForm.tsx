@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -28,6 +27,7 @@ interface ReceitaFormProps {
   onCancel: () => void;
   categories: any[];
   contacts: any[];
+  planos: any[];
 }
 
 const ReceitaForm: React.FC<ReceitaFormProps> = ({
@@ -37,7 +37,8 @@ const ReceitaForm: React.FC<ReceitaFormProps> = ({
   handleSaveReceita,
   onCancel,
   categories,
-  contacts
+  contacts,
+  planos
 }) => {
   return (
     <>
@@ -108,17 +109,25 @@ const ReceitaForm: React.FC<ReceitaFormProps> = ({
           <div className="space-y-2">
             <Label htmlFor="plano">Plano</Label>
             <Select
-              value={newReceita.plano}
-              onValueChange={(value) => setNewReceita({...newReceita, plano: value})}
+              value={newReceita.plano_id || ''}
+              onValueChange={(value) => {
+                const planoSelecionado = planos.find(p => p.id === value);
+                setNewReceita({
+                  ...newReceita, 
+                  plano_id: value,
+                  plano: planoSelecionado ? planoSelecionado.nome : ''
+                });
+              }}
             >
               <SelectTrigger id="plano">
                 <SelectValue placeholder="Selecione o plano" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
-                <SelectItem value="Básico">Básico</SelectItem>
-                <SelectItem value="Premium">Premium</SelectItem>
-                <SelectItem value="Enterprise">Enterprise</SelectItem>
+                {planos.map(plano => (
+                  <SelectItem key={plano.id} value={plano.id}>
+                    {plano.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
