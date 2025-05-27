@@ -12,6 +12,7 @@ import ReceitasDetalhadas from '@/pages/ReceitasDetalhadas';
 import Recorrentes from "./pages/Recorrentes";
 import Categorias from "./pages/Categorias";
 import CentroCustos from "./pages/CentroCustos";
+import Planos from "./pages/Planos";
 import Contatos from "./pages/Contatos";
 import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="recorrentes" element={<Recorrentes />} />
               <Route path="categorias" element={<Categorias />} />
               <Route path="centro-custos" element={<CentroCustos />} />
+			  <Route path="planos" element={<Planos />} />
               <Route path="contatos" element={<Contatos />} />
               <Route path="perfil" element={<Perfil />} />
             </Route>
