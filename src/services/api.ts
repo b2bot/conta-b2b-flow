@@ -140,6 +140,33 @@ export const transactionsAPI = {
   }
 };
 
+// --- PLANOS ---
+export const planosAPI = {
+  list: async () => {
+    const res = await fetch(`${API_BASE_URL}/listar-planos.php`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+  save: async (plano) => {
+    const res = await fetch(`${API_BASE_URL}/salvar-plano.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(plano)
+    });
+    return await res.json();
+  },
+  delete: async (id) => {
+    const res = await fetch(`${API_BASE_URL}/excluir-plano.php`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ id })
+    });
+    return await res.json();
+  }
+};
+
 // --- RECORRÊNCIAS ---
 export const recurrencesAPI = {
   list: async () => {
