@@ -9,11 +9,11 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Transacoes from "./pages/Transacoes";
 import ReceitasDetalhadas from '@/pages/ReceitasDetalhadas';
+import DespesasDetalhadas from '@/pages/DespesasDetalhadas';
 import Recorrentes from "./pages/Recorrentes";
 import Categorias from "./pages/Categorias";
 import Planos from './pages/Planos';
 import CentroCustos from "./pages/CentroCustos";
-import Planos from "./pages/Planos";
 import Contatos from "./pages/Contatos";
 import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
@@ -44,6 +44,7 @@ const App = () => (
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="transacoes" element={<Transacoes />} />
 			  <Route path="receitas-detalhadas" element={<ReceitasDetalhadas />} />
+			  <Route path="despesas-detalhadas" element={<DespesasDetalhadas />} />
               <Route path="recorrentes" element={<Recorrentes />} />
               <Route path="categorias" element={<Categorias />} />
 			  <Route path="planos" element={<Planos />} />
