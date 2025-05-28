@@ -1,4 +1,5 @@
 // src/hooks/usePlanos.tsx
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { planosAPI } from '@/services/api';
@@ -8,6 +9,7 @@ export interface Plano {
   nome: string;
   descricao: string;
   criado_em?: string;
+  ativo?: boolean;
 }
 
 export interface PlanoForm {
@@ -85,6 +87,32 @@ export const usePlanos = () => {
     }
   });
 
+
+  const duplicatePlanoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await planosAPI.duplicate(id);
+    },
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        toast({ title: 'Plano duplicado com sucesso' });
+        queryClient.invalidateQueries({ queryKey: ['planos'] });
+      } else {
+        toast({
+          title: 'Erro ao duplicar plano',
+          description: data.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao duplicar plano',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  });
+
   return {
     planos,
     isLoading,
@@ -92,5 +120,6 @@ export const usePlanos = () => {
     refetch,
     savePlanoMutation,
     deletePlanoMutation,
+    duplicatePlanoMutation
   };
 };

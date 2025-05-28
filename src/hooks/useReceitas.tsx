@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, isWithinInterval, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { categoriesAPI, contactsAPI } from '@/services/api';
+import { categoriesAPI, contactsAPI, planosAPI } from '@/services/api';
+import { authAPI, planosAPI, categoriesAPI, contactsAPI } from '@/services/api';
 
 // Mock API para planos (será substituída pela API real quando disponível)
 const planosAPI = {
@@ -54,6 +55,64 @@ export interface ReceitaForm {
   entregasPrincipais: string;
 }
 
+// API para receitas detalhadas
+export const receitasDetalhadasAPI = {
+  list: async () => {
+    const res = await fetch('/api/listar-receitas-detalhadas.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Erro ao buscar receitas');
+    return data;
+  },
+
+  save: async (receita: ReceitaForm) => {
+    const res = await fetch('/api/salvar-receita-detalhada.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+      },
+      body: JSON.stringify(receita),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Erro ao salvar receita');
+    return data;
+  },
+
+  delete: async (id: string) => {
+    const res = await fetch('/api/excluir-receita-detalhada.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+      },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Erro ao excluir receita');
+    return data;
+  },
+
+  duplicate: async (id: string) => {
+    const res = await fetch('/api/duplicar-receita-detalhada.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+      },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Erro ao duplicar receita');
+    return data;
+  },
+};
+
 export const useReceitas = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -61,6 +120,7 @@ export const useReceitas = () => {
   const [filterServico, setFilterServico] = useState('all');
   const [filterPlano, setFilterPlano] = useState('all');
   const [filterModeloCobranca, setFilterModeloCobranca] = useState('all');
+<<<<<<< HEAD
   
   const [receitas, setReceitas] = useState<Receita[]>([
     {
@@ -124,11 +184,33 @@ export const useReceitas = () => {
       entregasPrincipais: 'SEO Essencial + 4 artigos de blo'
     }
   ]);
+=======
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch categories for dropdown
+  // Função para resetar o filtro de data
+  const resetDateFilter = () => {
+    setStartDate(null);
+    setEndDate(null);
+  };
+
+  const { data: receitasData, refetch } = useQuery({
+    queryKey: ['receitas-detalhadas'],
+    queryFn: async () => {
+      try {
+        const response = await receitasDetalhadasAPI.list();
+        return response.status === 'success' ? response.receitas : [];
+      } catch (error) {
+        console.error('Erro ao buscar receitas:', error);
+        return [];
+      }
+    }
+  });
+
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -137,7 +219,6 @@ export const useReceitas = () => {
     }
   });
 
-  // Fetch contacts for dropdown
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
@@ -146,7 +227,10 @@ export const useReceitas = () => {
     }
   });
 
+<<<<<<< HEAD
   // Fetch planos for dropdown
+=======
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
   const { data: planos = [] } = useQuery({
     queryKey: ['planos'],
     queryFn: async () => {
@@ -155,6 +239,7 @@ export const useReceitas = () => {
     }
   });
 
+<<<<<<< HEAD
   // Save receita mutation
   const saveReceitaMutation = useMutation({
     mutationFn: async (receita: ReceitaForm) => {
@@ -186,11 +271,15 @@ export const useReceitas = () => {
       }
 
       return { status: 'success' };
+=======
+  const saveReceitaMutation = useMutation({
+    mutationFn: async (receita: ReceitaForm) => {
+      return await receitasDetalhadasAPI.save(receita);
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
     },
     onSuccess: () => {
-      toast({
-        title: "Receita salva com sucesso",
-      });
+      toast({ title: "Receita salva com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ['receitas-detalhadas'] });
     },
     onError: (error: Error) => {
       toast({
@@ -201,6 +290,7 @@ export const useReceitas = () => {
     }
   });
 
+<<<<<<< HEAD
   // Delete receita mutation
   const deleteReceitaMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -212,6 +302,15 @@ export const useReceitas = () => {
       toast({
         title: "Receita excluída com sucesso",
       });
+=======
+  const deleteReceitaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await receitasDetalhadasAPI.delete(id);
+    },
+    onSuccess: () => {
+      toast({ title: "Receita excluída com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ['receitas-detalhadas'] });
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
     },
     onError: (error: Error) => {
       toast({
@@ -222,6 +321,7 @@ export const useReceitas = () => {
     }
   });
 
+<<<<<<< HEAD
   // Get unique services for filter
   const servicos = useMemo(() => {
     const uniqueServicos = new Set(receitas.map(r => r.servico));
@@ -235,37 +335,112 @@ export const useReceitas = () => {
   }, [receitas]);
 
   // Filter receitas
+=======
+  const duplicateReceita = (receita: Receita): ReceitaForm => {
+    return {
+      data: new Date(),
+      codigo: receita.codigo,
+      contato_id: receita.contato_id || '',
+      servico: receita.servico,
+      plano: receita.plano,
+      plano_id: receita.plano_id,
+      categoria_id: receita.categoria_id || '',
+      valor: receita.valor.toString(),
+      tipo: receita.tipo,
+      modeloCobranca: receita.modeloCobranca,
+      status: 'A receber',
+      entregasPrincipais: receita.entregasPrincipais
+    };
+  };
+
+  const servicos = useMemo(() => {
+    if (!receitasData) return [];
+    const uniqueServicos = new Set(receitasData.map((r: Receita) => r.servico));
+    return Array.from(uniqueServicos);
+  }, [receitasData]);
+
+  const modelosCobranca = useMemo(() => {
+    if (!receitasData) return [];
+    const uniqueModelos = new Set(receitasData.map((r: Receita) => r.modeloCobranca));
+    return Array.from(uniqueModelos);
+  }, [receitasData]);
+
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
   const filteredReceitas = useMemo(() => {
-    return receitas.filter(receita => {
-      const matchesSearch = receita.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           receita.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           receita.servico.toLowerCase().includes(searchTerm.toLowerCase());
-      
+    if (!receitasData) return [];
+    return receitasData.filter((receita: Receita) => {
+      const matchesSearch =
+        (receita.cliente?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (receita.codigo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (receita.servico?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+
       const matchesStatus = filterStatus === 'all' || receita.status === filterStatus;
       const matchesTipo = filterTipo === 'all' || receita.tipo === filterTipo;
       const matchesServico = filterServico === 'all' || receita.servico === filterServico;
       const matchesPlano = filterPlano === 'all' || receita.plano === filterPlano;
       const matchesModeloCobranca = filterModeloCobranca === 'all' || receita.modeloCobranca === filterModeloCobranca;
+<<<<<<< HEAD
       
       return matchesSearch && matchesStatus && matchesTipo && matchesServico && matchesPlano && matchesModeloCobranca;
     });
   }, [receitas, searchTerm, filterStatus, filterTipo, filterServico, filterPlano, filterModeloCobranca]);
+=======
 
-  // Calculate financial summary
+      let matchesDateRange = true;
+      if (startDate && endDate) {
+        const receitaDate = parseISO(receita.data);
+        matchesDateRange = isWithinInterval(receitaDate, {
+          start: startDate,
+          end: endDate
+        });
+      } else if (startDate) {
+        const receitaDate = parseISO(receita.data);
+        matchesDateRange = receitaDate >= startDate;
+      } else if (endDate) {
+        const receitaDate = parseISO(receita.data);
+        matchesDateRange = receitaDate <= endDate;
+      }
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesTipo &&
+        matchesServico &&
+        matchesPlano &&
+        matchesModeloCobranca &&
+        matchesDateRange
+      );
+    });
+  }, [
+    receitasData,
+    searchTerm,
+    filterStatus,
+    filterTipo,
+    filterServico,
+    filterPlano,
+    filterModeloCobranca,
+    startDate,
+    endDate
+  ]);
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
+
   const financialSummary = useMemo(() => {
+    if (!filteredReceitas.length) {
+      return { recebido: 0, aReceber: 0, total: 0, lucro: 0 };
+    }
     const recebido = filteredReceitas
-      .filter(r => r.status === 'Recebido')
-      .reduce((sum, r) => sum + r.valor, 0);
-    
+      .filter((r: Receita) => r.status === 'Recebido')
+      .reduce((sum, r: Receita) => sum + parseFloat(r.valor.toString()), 0);
+
     const aReceber = filteredReceitas
-      .filter(r => r.status === 'A receber')
-      .reduce((sum, r) => sum + r.valor, 0);
-    
+      .filter((r: Receita) => r.status === 'A receber')
+      .reduce((sum, r: Receita) => sum + parseFloat(r.valor.toString()), 0);
+
     return {
       recebido,
       aReceber,
       total: recebido + aReceber,
-      lucro: recebido // Simplified calculation
+      lucro: recebido
     };
   }, [filteredReceitas]);
 
@@ -303,6 +478,14 @@ export const useReceitas = () => {
     setFilterPlano,
     filterModeloCobranca,
     setFilterModeloCobranca,
+<<<<<<< HEAD
+=======
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    resetDateFilter,
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
     categories,
     contacts,
     planos,
@@ -311,6 +494,11 @@ export const useReceitas = () => {
     financialSummary,
     saveReceitaMutation,
     deleteReceitaMutation,
+<<<<<<< HEAD
     duplicateReceita
+=======
+    duplicateReceita,
+    refetch
+>>>>>>> f0648d5 (Atualizações locais de 28/05 às 11:25)
   };
 };

@@ -25,7 +25,7 @@ function getAuthHeaders() {
 // --- AUTENTICAÇÃO ---
 export const authAPI = {
   user: async () => {
-    const res = await fetch(`${API_BASE_URL}/user.php`, {
+    const res = await fetch(`${API_BASE_URL}/user.php`, { 
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -187,3 +187,5 @@ export const recurrencesAPI = {
 };
 
 export { /* named exports para manter padrão nos imports */ };
+
+

@@ -136,6 +136,13 @@ const Layout: React.FC = () => {
               active={isActive('/categorias')}
               onClick={closeSidebar}
             />
+			<NavItem
+              to="/planos"
+              icon={<PieChart size={18} />}
+              label="Planos"
+              active={isActive('/planos')}
+              onClick={closeSidebar}
+            />
             <NavItem
               to="/centro-custos"
               icon={<PieChart size={18} />}

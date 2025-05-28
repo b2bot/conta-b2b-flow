@@ -7,7 +7,10 @@ import {
   Filter,
   X,
   Download as DownloadIcon,
-  MoreVertical
+  MoreVertical,
+  Edit,
+  Trash,
+  Copy,
 } from 'lucide-react';
 import {
   Dialog,
@@ -20,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+
 import {
   Select,
   SelectContent,
@@ -78,6 +82,10 @@ const planosAPI = {
     return { status: 'success', message: 'Plano excluído com sucesso' };
   }
 };
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { Badge } from '@/components/ui/badge';
+import { usePlanos, Plano, PlanoForm } from '@/hooks/usePlanos';
 
 const Planos = () => {
   const [filterOpen, setFilterOpen] = useState(false);
@@ -181,6 +189,20 @@ const Planos = () => {
 
   const planos = planosData || [];
 
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Usar o hook real de planos
+  const { 
+    planos, 
+    isLoading, 
+    isError, 
+    refetch, 
+    savePlanoMutation, 
+    deletePlanoMutation,
+    duplicatePlanoMutation
+  } = usePlanos();
+
+
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
@@ -216,7 +238,7 @@ const Planos = () => {
         description: "O nome do plano é obrigatório.",
         variant: "destructive",
       });
-      return;
+      return; // Toast já é exibido pelo hook
     }
 
     const planoToSave = {
@@ -226,7 +248,13 @@ const Planos = () => {
       ativo: newPlano.ativo,
     };
     
+
     savePlanoMutation.mutate(planoToSave);
+      onSuccess: () => {
+        setDialogOpen(false);
+        resetPlanoForm();
+      }
+    });
   };
   
   const handleEditPlano = (plano: Plano) => {
@@ -245,6 +273,12 @@ const Planos = () => {
     }
   };
 
+
+  const handleDuplicatePlano = (id: string) => {
+    duplicatePlanoMutation.mutate(id);
+  };
+
+
   const handleExportPlanos = () => {
     // Transform planos for export
     const dataToExport = filteredPlanos.map(plano => ({
@@ -259,6 +293,12 @@ const Planos = () => {
       title: "Exportação concluída",
       description: "Os planos foram exportados com sucesso.",
     });
+	
+      'Data de Criação': plano.criado_em || '-'
+    }));
+    
+    exportToExcel(dataToExport, 'planos');
+
   };
 
   // Render loading skeleton
@@ -290,7 +330,11 @@ const Planos = () => {
       </p>
       <div className="mt-6">
         <Button
+
           onClick={() => queryClient.invalidateQueries({ queryKey: ['planos'] })}
+
+          onClick={() => refetch()}
+
           className="bg-purple hover:bg-purple/90"
         >
           Tentar novamente
@@ -443,6 +487,7 @@ const Planos = () => {
                   <div className="col-span-4 font-medium">
                     {plano.nome}
                     {!plano.ativo && (
+                    {plano.ativo === false && (
                       <Badge variant="outline" className="ml-2 text-gray-500">
                         Inativo
                       </Badge>
@@ -461,12 +506,20 @@ const Planos = () => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEditPlano(plano)}>
+                          <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicatePlano(plano.id)}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Duplicar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           onClick={() => handleDeletePlano(plano.id)}
                           className="text-red-600"
                         >
+
+                          <Trash className="h-4 w-4 mr-2" />
                           Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>

@@ -11,6 +11,7 @@ import Transacoes from "./pages/Transacoes";
 import ReceitasDetalhadas from '@/pages/ReceitasDetalhadas';
 import Recorrentes from "./pages/Recorrentes";
 import Categorias from "./pages/Categorias";
+import Planos from './pages/Planos';
 import CentroCustos from "./pages/CentroCustos";
 import Planos from "./pages/Planos";
 import Contatos from "./pages/Contatos";
@@ -45,6 +46,7 @@ const App = () => (
 			  <Route path="receitas-detalhadas" element={<ReceitasDetalhadas />} />
               <Route path="recorrentes" element={<Recorrentes />} />
               <Route path="categorias" element={<Categorias />} />
+			  <Route path="planos" element={<Planos />} />
               <Route path="centro-custos" element={<CentroCustos />} />
 			  <Route path="planos" element={<Planos />} />
               <Route path="contatos" element={<Contatos />} />
