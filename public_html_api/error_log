@@ -1,0 +1,134 @@
+[27-May-2025 09:14:40 UTC] Erro em excluir-plano.php: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'base_sistema.receitas' doesn't exist
+[27-May-2025 09:15:00 UTC] Erro em excluir-plano.php: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'base_sistema.receitas' doesn't exist
+[27-May-2025 09:17:37 UTC] Erro em excluir-plano.php: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'base_sistema.receitas' doesn't exist
+[27-May-2025 09:18:25 UTC] Erro em excluir-plano.php: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'base_sistema.receitas' doesn't exist
+[27-May-2025 14:59:34 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:00:04 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 15:02:28 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 15:02:33 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:02:40 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:02:56 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 15:03:53 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:03:57 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:04:15 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/iatiza9j/public_html/sistema/api/listar-transacoes.php on line 54
+[27-May-2025 15:04:31 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 15:06:13 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 16:15:59 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:16:44 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:17:06 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:17:19 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 16:19:44 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:20:08 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 16:20:34 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:22:12 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 33
+[27-May-2025 16:23:37 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:24:03 UTC] PHP Parse error:  syntax error, unexpected token "*", expecting end of file in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 14
+[27-May-2025 16:37:19 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:37:37 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php:32
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/salvar-receita-detalhada.php on line 32
+[27-May-2025 16:42:37 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:42:50 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:43:09 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:43:38 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:20
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 20
+[27-May-2025 16:47:19 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:21
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 21
+[27-May-2025 16:47:41 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:21
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 21
+[27-May-2025 16:48:57 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:21
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 21
+[27-May-2025 16:49:14 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php:21
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/listar-receitas-detalhadas.php on line 21
+[27-May-2025 16:55:13 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php on line 33
+[27-May-2025 16:56:16 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php on line 33
+[27-May-2025 16:57:32 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function getConnection() in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php:33
+Stack trace:
+#0 {main}
+  thrown in /home/iatiza9j/public_html/sistema/api/excluir-receita-detalhada.php on line 33

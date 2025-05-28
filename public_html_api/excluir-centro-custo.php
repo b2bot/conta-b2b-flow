@@ -1,5 +1,5 @@
 <?php
-// Arquivo excluir-transacao.php - Exclui uma transação pelo ID
+// Arquivo excluir-centro-custo.php - Exclui um centro de custo pelo ID
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -63,7 +63,7 @@ try {
         http_response_code(400);
         echo json_encode([
             'status' => 'error',
-            'message' => 'ID da transação não fornecido',
+            'message' => 'ID do centro de custo não fornecido',
             'error_code' => 'MISSING_ID',
             'raw_input' => $input
         ]);
@@ -72,35 +72,50 @@ try {
 
     $id = $data['id'];
 
-    // Verificar se a transação existe
-    $stmt = $pdo->prepare("SELECT id FROM transacoes WHERE id = :id");
+    // Verificar se o centro de custo existe
+    $stmt = $pdo->prepare("SELECT id FROM centro_custos WHERE id = :id");
     $stmt->execute(['id' => $id]);
     if (!$stmt->fetch()) {
         http_response_code(404);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Transação não encontrada',
-            'error_code' => 'TRANSACTION_NOT_FOUND'
+            'message' => 'Centro de custo não encontrado',
+            'error_code' => 'COST_CENTER_NOT_FOUND'
         ]);
         exit;
     }
 
-    // Excluir a transação
-    $stmt = $pdo->prepare("DELETE FROM transacoes WHERE id = :id");
+    // Verificar se o centro de custo está sendo usado em transações
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM transacoes WHERE centro_custo_id = :id");
+    $stmt->execute(['id' => $id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result['total'] > 0) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Este centro de custo não pode ser excluído pois está sendo usado em transações',
+            'error_code' => 'COST_CENTER_IN_USE'
+        ]);
+        exit;
+    }
+
+    // Excluir o centro de custo
+    $stmt = $pdo->prepare("DELETE FROM centro_custos WHERE id = :id");
     $stmt->execute(['id' => $id]);
 
     // Verificar se a exclusão foi bem-sucedida
     if ($stmt->rowCount() > 0) {
         echo json_encode([
             'status' => 'success',
-            'message' => 'Transação excluída com sucesso',
+            'message' => 'Centro de custo excluído com sucesso',
             'id' => $id
         ]);
     } else {
         http_response_code(500);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Erro ao excluir transação',
+            'message' => 'Erro ao excluir centro de custo',
             'error_code' => 'DELETE_FAILED'
         ]);
     }
@@ -108,7 +123,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Erro ao excluir transação: ' . $e->getMessage(),
+        'message' => 'Erro ao excluir centro de custo: ' . $e->getMessage(),
         'error_code' => 'DB_ERROR'
     ]);
     exit;

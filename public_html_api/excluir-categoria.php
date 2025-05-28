@@ -1,5 +1,5 @@
 <?php
-// Arquivo excluir-transacao.php - Exclui uma transação pelo ID
+// Arquivo excluir-categoria.php - Exclui uma categoria pelo ID
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -63,7 +63,7 @@ try {
         http_response_code(400);
         echo json_encode([
             'status' => 'error',
-            'message' => 'ID da transação não fornecido',
+            'message' => 'ID da categoria não fornecido',
             'error_code' => 'MISSING_ID',
             'raw_input' => $input
         ]);
@@ -72,45 +72,85 @@ try {
 
     $id = $data['id'];
 
-    // Verificar se a transação existe
-    $stmt = $pdo->prepare("SELECT id FROM transacoes WHERE id = :id");
+    // Verificar se a categoria existe
+    $stmt = $pdo->prepare("SELECT id FROM categorias WHERE id = :id");
     $stmt->execute(['id' => $id]);
     if (!$stmt->fetch()) {
         http_response_code(404);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Transação não encontrada',
-            'error_code' => 'TRANSACTION_NOT_FOUND'
+            'message' => 'Categoria não encontrada',
+            'error_code' => 'CATEGORY_NOT_FOUND'
         ]);
         exit;
     }
 
-    // Excluir a transação
-    $stmt = $pdo->prepare("DELETE FROM transacoes WHERE id = :id");
+    // Verificar se a categoria está sendo usada em transações
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM transacoes WHERE categoria_id = :id");
+    $stmt->execute(['id' => $id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result['total'] > 0) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Esta categoria não pode ser excluída pois está sendo usada em transações',
+            'error_code' => 'CATEGORY_IN_USE'
+        ]);
+        exit;
+    }
+    
+    // Verificar se a categoria está sendo usada em recorrentes
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM recorrentes WHERE categoria_id = :id");
+    $stmt->execute(['id' => $id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result['total'] > 0) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Esta categoria não pode ser excluída pois está sendo usada em lançamentos recorrentes',
+            'error_code' => 'CATEGORY_IN_USE'
+        ]);
+        exit;
+    }
+
+    // Excluir a categoria
+    $stmt = $pdo->prepare("DELETE FROM categorias WHERE id = :id");
     $stmt->execute(['id' => $id]);
 
     // Verificar se a exclusão foi bem-sucedida
     if ($stmt->rowCount() > 0) {
         echo json_encode([
             'status' => 'success',
-            'message' => 'Transação excluída com sucesso',
+            'message' => 'Categoria excluída com sucesso',
             'id' => $id
         ]);
     } else {
         http_response_code(500);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Erro ao excluir transação',
+            'message' => 'Erro ao excluir categoria',
             'error_code' => 'DELETE_FAILED'
         ]);
     }
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Erro ao excluir transação: ' . $e->getMessage(),
-        'error_code' => 'DB_ERROR'
-    ]);
+    // Verificar se é um erro de integridade referencial
+    if ($e->getCode() == '23000') {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Esta categoria não pode ser excluída pois está sendo usada em outras partes do sistema',
+            'error_code' => 'CATEGORY_IN_USE'
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Erro ao excluir categoria: ' . $e->getMessage(),
+            'error_code' => 'DB_ERROR'
+        ]);
+    }
     exit;
 } catch (Throwable $e) {
     http_response_code(500);
